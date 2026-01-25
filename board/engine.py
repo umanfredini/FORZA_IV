@@ -73,3 +73,9 @@ class GameEngine:
     def get_state(self):
         """ Ritorna una copia del sistema binario per il Profiler """
         return self.bitboards[0], self.bitboards[1], list(self.heights)
+
+    def reset(self):
+        """ * Ripristina la scacchiera allo stato iniziale. """
+        self.bitboards = [0, 0]
+        self.heights = [col * 7 for col in range(7)]
+        self.counter = 0
