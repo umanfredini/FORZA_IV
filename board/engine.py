@@ -48,16 +48,27 @@ class GameEngine:
         return False
 
     def get_board_matrix(self):
-        # Nota: Pygame disegna dall'alto, quindi invertiamo le righe
+        """
+        Converte le bitboard in matrice per la View.
+        Usa np.flipud per orientare correttamente la gravità (0 in basso -> 5 in basso visuale).
+        """
+        # Creiamo la matrice "logica": riga 0 è il fondo, riga 5 è la cima
         matrix = np.zeros((6, 7), dtype=int)
+
         for col in range(7):
             for row in range(6):
-                bit = 1 << (col * 7 + row)
-                if self.bitboards[0] & bit:
-                    matrix[5 - row][col] = 1  # 5-row per raddrizzare la scacchiera
-                elif self.bitboards[1] & bit:
-                    matrix[5 - row][col] = 2
-        return matrix
+                # Calcoliamo il bit esatto usando la struttura 7-bit (6 + 1 guardia)
+                bit_index = col * 7 + row
+                bit_mask = 1 << bit_index
+
+                if self.bitboards[0] & bit_mask:
+                    matrix[row][col] = 1
+                elif self.bitboards[1] & bit_mask:
+                    matrix[row][col] = 2
+
+        # ORA invertiamo l'asse Y della matrice.
+        # Ciò che era logico (riga 0) diventa visivo (riga 5/fondo)
+        return np.flipud(matrix)
 
     def get_state(self):
         """ Ritorna una copia del sistema binario per il Profiler """

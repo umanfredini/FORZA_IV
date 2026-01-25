@@ -29,7 +29,7 @@ def main():
 
                 if col is not None:
                     # [PROFILING] Qui in futuro salveremo: state -> col
-                    print(f"Stato Bitboard: {state} | Mossa: {col}")
+                    print(f"Stato Bitboard: {state} | Colonna: {col}")
 
                     view.draw(engine.get_board_matrix(), controller.turn)
 
