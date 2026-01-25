@@ -1,0 +1,63 @@
+### PyCharm (JetBrains) ###
+# Ignora l'intera cartella delle impostazioni dell'IDE
+.idea/
+# Se vuoi mantenere le configurazioni condivise del team (opzionale),
+# commenta la riga sopra e scommenta quelle sotto:
+# .idea/workspace.xml
+# .idea/usage.statistics.xml
+# .idea/dictionary.xml
+# .idea/shelf/
+
+### Python ###
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+### Virtual Environments ###
+# È fondamentale non committare mai l'ambiente virtuale
+venv/
+.venv/
+env/
+.env/
+ENV/
+env.bak/
+venv.bak/
+
+### Testing / Coverage ###
+.target/
+.pytest_cache/
+.nosepythons/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.stats
+.coveragerc
+
+### OS Files ###
+.DS_Store
+Thumbs.db
