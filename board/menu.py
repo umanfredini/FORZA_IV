@@ -27,7 +27,7 @@ class MenuManager:
         self.COLOR_TEXT = (200, 200, 200)
         self.COLOR_ACCENT = (255, 255, 0)  # Giallo per highlight
         self.COLOR_BIAS = (255, 100, 100)  # Rosso per il bot cattivo
-
+        self.COLOR_NOVICE = (100, 255, 100)  # Verde per il "Principiante"
     def draw_main_menu(self):
         """
         * Disegna la schermata iniziale.
@@ -53,28 +53,32 @@ class MenuManager:
         """
         * Disegna la schermata di scelta dell'avversario AI.
         """
-        self.screen.fill((40, 40, 50))  # Sfondo leggermente più chiaro
+        """ Aggiornato con 3 opzioni """
+        self.screen.fill((40, 40, 50))
 
         title = self.font_title.render("SCEGLI IL TUO AVVERSARIO", True, self.COLOR_ACCENT)
+        center_x = self.width // 2
+        self.screen.blit(title, (center_x - title.get_width() // 2, 60))
 
-        # Opzione 1
-        opt1 = self.font_option.render("1. Bot Standard", True, self.COLOR_TITLE)
-        desc1 = self.font_desc.render("(Equilibrato, gioca per vincere)", True, self.COLOR_TEXT)
+        # --- Opzione 1: Standard ---
+        opt1 = self.font_option.render("1. Bot Standard (Expert)", True, self.COLOR_TITLE)
+        desc1 = self.font_desc.render("(Gioca per vincere, Depth 4)", True, self.COLOR_TEXT)
+        self.screen.blit(opt1, (center_x - opt1.get_width() // 2, 180))
+        self.screen.blit(desc1, (center_x - desc1.get_width() // 2, 210))
 
-        # Opzione 2
-        opt2 = self.font_option.render("2. Il Cieco Diagonale", True, self.COLOR_BIAS)
-        desc2 = self.font_desc.render("(Forte in attacco, ma ignora le minacce diagonali)", True, self.COLOR_TEXT)
+        # --- Opzione 2: Bias ---
+        opt2 = self.font_option.render("2. Il Cieco Diagonale (Bias)", True, self.COLOR_BIAS)
+        desc2 = self.font_desc.render("(Forte in attacco, ignora diagonali)", True, self.COLOR_TEXT)
+        self.screen.blit(opt2, (center_x - opt2.get_width() // 2, 300))
+        self.screen.blit(desc2, (center_x - desc2.get_width() // 2, 330))
+
+        # --- Opzione 3: Novice (NUOVO) ---
+        opt3 = self.font_option.render("3. Il Novizio (Human-Like)", True, self.COLOR_NOVICE)
+        desc3 = self.font_desc.render("(Fa errori probabilistici, Depth 3)", True, self.COLOR_TEXT)
+        self.screen.blit(opt3, (center_x - opt3.get_width() // 2, 420))
+        self.screen.blit(desc3, (center_x - desc3.get_width() // 2, 450))
 
         center_x = self.width // 2
 
-        self.screen.blit(title, (center_x - title.get_width() // 2, 80))
-
-        # Blocco 1
-        self.screen.blit(opt1, (center_x - opt1.get_width() // 2, 250))
-        self.screen.blit(desc1, (center_x - desc1.get_width() // 2, 285))
-
-        # Blocco 2
-        self.screen.blit(opt2, (center_x - opt2.get_width() // 2, 400))
-        self.screen.blit(desc2, (center_x - desc2.get_width() // 2, 435))
 
         pygame.display.update()

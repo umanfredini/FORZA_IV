@@ -9,6 +9,7 @@ from board.menu import MenuManager, STATE_MAIN_MENU, STATE_GAME, STATE_BOT_SELEC
 # --- IMPORTS AI ---
 from ai.minmax import MinimaxBot
 from ai.diagonal_blind import DiagonalDefensiveFlawBot
+from ai.novice import MinimaxBotNovice
 
 
 def main():
@@ -57,23 +58,30 @@ def main():
         # 2. SELEZIONE BOT
         # -----------------------------------------------------------------
         elif app_state == STATE_BOT_SELECT:
-            menu.draw_bot_selection()  # Chiamata pulita alla classe Menu
-
+            menu.draw_bot_selection()
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit();
-                    sys.exit()
+                if event.type == pygame.QUIT: pygame.quit(); sys.exit()
 
                 if event.type == pygame.KEYDOWN:
+                    # Tasto 1: Bot Standard
                     if event.key == pygame.K_1:
                         print("Scelto: Bot Standard")
                         bot = MinimaxBot(depth=4)
                         controller.reset_for_new_round()
                         app_state = STATE_GAME
 
+                    # Tasto 2: Bias Diagonale
                     elif event.key == pygame.K_2:
                         print("Scelto: Bot Cieco Diagonale")
                         bot = DiagonalDefensiveFlawBot(depth=4)
+                        controller.reset_for_new_round()
+                        app_state = STATE_GAME
+
+                    # Tasto 3: Novice (NUOVO)
+                    elif event.key == pygame.K_3:
+                        print("Scelto: Bot Novizio")
+                        # Depth 3 come definito nella classe
+                        bot = MinimaxBotNovice(depth=3)
                         controller.reset_for_new_round()
                         app_state = STATE_GAME
 
