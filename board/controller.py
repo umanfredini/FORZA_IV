@@ -6,7 +6,8 @@ class GameController:
         self.game_over = False  # NUOVO FLAG
         self.stats = {
             "wins_p1": 0, "wins_p2": 0,
-            "moves_p1": 0, "moves_p2": 0
+            "moves_p1": 0, "moves_p2": 0,
+            "ai_eval": 0
         }
 
     def process_turn(self, posx):
@@ -41,5 +42,6 @@ class GameController:
         self.engine.reset()
         self.stats["moves_p1"] = 0
         self.stats["moves_p2"] = 0
+        self.stats["ai_eval"] = 0  # Reset eval
         self.turn = 0
-        self.game_over = False  # Reset flag
+        self.game_over = False

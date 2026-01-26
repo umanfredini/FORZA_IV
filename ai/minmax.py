@@ -8,7 +8,7 @@ class MinimaxBot:
     * Implementazione dell'agente AI basato su Minimax con Alpha-Beta Pruning.
     """
 
-    def __init__(self, depth=4):
+    def __init__(self, depth):
         self.depth = depth
         self.PLAYER_PIECE = 1
         self.BOT_PIECE = 2
@@ -153,7 +153,15 @@ class MinimaxBot:
 
     def get_best_move(self, engine):
         """
-        * Interfaccia pubblica per ottenere la mossa migliore.
+        * Ritorna la tupla (colonna_migliore, punteggio_valutazione).
         """
+        # Nota: ora ritorniamo entrambi i valori
         col, minimax_score = self.minimax(engine, self.depth, -math.inf, math.inf, True)
-        return col
+        return col, minimax_score
+
+    def get_evaluation(self, engine):
+        """
+        * Calcola una valutazione statica immediata (senza guardare mosse future).
+        * Utile per aggiornare la barra quando tocca all'umano.
+        """
+        return self.score_position(engine.get_board_matrix(), self.BOT_PIECE)
