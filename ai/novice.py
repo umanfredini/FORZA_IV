@@ -128,17 +128,13 @@ class MinimaxBotNovice:
     def get_best_move(self, engine):
         """
         * Logica "Novice": Calcola tutte le mosse possibili e sceglie in base alle probabilità.
-        * 40% Migliore (Indice 0)
-        * 20% Seconda (Indice 1)
-        * 40% Terza (Indice 2)
         """
         valid_moves = self.get_valid_locations(engine)
 
-        # Se c'è solo una mossa o nessuna, non c'è scelta da fare
         if not valid_moves:
             return None, 0
         if len(valid_moves) == 1:
-            # Calcoliamo comunque lo score per la barra UI
+            # Qui usiamo True che nel minimax mappa correttamente agli indici
             score = self.minimax(copy.deepcopy(engine), 1, -math.inf, math.inf, True)[1]
             return valid_moves[0], score
 
@@ -146,18 +142,22 @@ class MinimaxBotNovice:
         scored_moves = []
         for col in valid_moves:
             temp_engine = copy.deepcopy(engine)
-            temp_engine.drop_piece(col, self.BOT_PIECE)
+
+            # --- CORREZIONE QUI SOTTO ---
+            # ERRORE PRECEDENTE: temp_engine.drop_piece(col, self.BOT_PIECE) -> passava 2
+            # CORREZIONE: Passiamo 1 (l'indice della bitboard del Player 2/Bot)
+            temp_engine.drop_piece(col, 1)
+
             # Chiamiamo minimax per l'avversario (depth - 1)
             score = self.minimax(temp_engine, self.depth - 1, -math.inf, math.inf, False)[1]
             scored_moves.append((col, score))
 
         # 2. Ordiniamo le mosse dalla migliore alla peggiore (punteggio decrescente)
-        # x[1] è lo score
         scored_moves.sort(key=lambda x: x[1], reverse=True)
 
-        # 3. Logica probabilistica
-        rand_val = random.random()  # Numero tra 0.0 e 1.0
-        chosen_index = 0  # Default alla migliore
+        # 3. Logica probabilistica (Resto del codice invariato)
+        rand_val = random.random()
+        chosen_index = 0
 
         # Distribuzione: 40% Best, 20% 2nd, 40% 3rd
         if rand_val < 0.40:
@@ -167,11 +167,9 @@ class MinimaxBotNovice:
         else:
             chosen_index = 2  # Terza migliore
 
-        # Gestione sicurezza: se vogliamo la 3a mossa ma ce ne sono solo 2 disponibili
         if chosen_index >= len(scored_moves):
-            chosen_index = 0  # Fallback sulla migliore (o potremmo fare random)
+            chosen_index = 0
 
-        # Estrazione mossa finale
         final_move = scored_moves[chosen_index]
         return final_move[0], final_move[1]
 
