@@ -1,167 +1,124 @@
-import math
+"""
+ai/minimax.py
+Motore Decisionale Generico.
+Implementa l'algoritmo Minimax con Alpha-Beta Pruning ottimizzato per Bitboard.
+Non contiene logica di punteggio: delega tutto all'Evaluator passato nel costruttore.
+"""
 import random
-import copy
 
 
-class MinimaxBot:
-    """
-    * Implementazione dell'agente AI basato su Minimax con Alpha-Beta Pruning.
-    """
-
-    def __init__(self, depth):
+class MinimaxAgent:
+    def __init__(self, engine, evaluator, depth=4):
+        self.engine = engine
+        self.evaluator = evaluator
         self.depth = depth
-        self.PLAYER_PIECE = 1
-        self.BOT_PIECE = 2
-        self.EMPTY = 0
-        self.WINDOW_LENGTH = 4
 
-    def evaluate_window(self, window, piece):
+    def choose_move(self, player_idx):
         """
-        * Assegna un punteggio a una finestra di 4 celle.
-        *
-        * @param window Lista di 4 interi rappresentanti le celle.
-        * @param piece Il pezzo del giocatore corrente.
-        * @return int Il punteggio calcolato.
+        Punto di ingresso pubblico.
+        Restituisce l'indice della colonna migliore (0-6).
         """
-        score = 0
-        opp_piece = self.PLAYER_PIECE if piece == self.BOT_PIECE else self.BOT_PIECE
+        # 1. Recupero mosse valide
+        valid_moves = [c for c in range(7) if self.engine.is_valid_location(c)]
 
-        if window.count(piece) == 4:
-            score += 100
-        elif window.count(piece) == 3 and window.count(self.EMPTY) == 1:
-            score += 5
-        elif window.count(piece) == 2 and window.count(self.EMPTY) == 2:
-            score += 2
+        # 2. Ottimizzazione "Killer Move": Se c'è una vittoria immediata, prendila subito!
+        # Questo evita di lanciare l'intera ricorsione per una scelta ovvia.
+        for col in valid_moves:
+            if self.engine.is_winning_move(col, player_idx):
+                return col
 
-        if window.count(opp_piece) == 3 and window.count(self.EMPTY) == 1:
-            score -= 4  # Penalità forte se l'avversario sta per vincere
+        # 3. Avvio Ricorsione Minimax
+        best_score = float('-inf')
+        best_col = random.choice(valid_moves)  # Fallback casuale
 
-        return score
+        alpha = float('-inf')
+        beta = float('inf')
 
-    def score_position(self, board_matrix, piece):
+        # Ordiniamo le mosse? Per ora casuale, ma potremmo ordinare per colonna centrale
+        # per migliorare l'alpha-beta pruning (il centro è spesso migliore).
+
+        for col in valid_moves:
+            # --- SALVATAGGIO STATO VELOCE (No deepcopy!) ---
+            # Bitboard engine permette di salvare lo stato con pochi interi
+            state_before = self.engine.get_state()
+
+            # Simuliamo la mossa
+            self.engine.drop_piece(col, player_idx)
+
+            # Chiamiamo minimax per l'avversario (depth - 1)
+            # Passiamo False perché ora tocca all'avversario (minimizzare il nostro score)
+            score = self.minimax(self.depth - 1, False, alpha, beta, player_idx)
+
+            # --- RIPRISTINO STATO ---
+            self.engine.set_state(state_before)
+
+            if score > best_score:
+                best_score = score
+                best_col = col
+
+            # Aggiornamento Alpha (miglior risultato che possiamo assicurarci)
+            alpha = max(alpha, best_score)
+
+        return best_col
+
+    def minimax(self, depth, is_maximizing, alpha, beta, ai_player_idx):
         """
-        * Valuta l'intera scacchiera per determinare quanto è favorevole per il bot.
-        *
-        * @param board_matrix La matrice 6x7 dello stato attuale.
-        * @param piece Il pezzo da valutare.
-        * @return int Punteggio totale.
+        Nucleo ricorsivo dell'algoritmo.
+        ai_player_idx: Chi è il bot che sta pensando (sempre fisso).
+        is_maximizing: True se tocca al bot, False se tocca all'avversario.
         """
-        score = 0
+        # Identifichiamo l'avversario
+        opponent_idx = (ai_player_idx + 1) % 2
 
-        # Preferenza per la colonna centrale
-        center_array = [int(i) for i in list(board_matrix[:, 3])]
-        center_count = center_array.count(piece)
-        score += center_count * 3
+        # CASO BASE: Foglia raggiunta o Partita Finita
+        if depth == 0:
+            return self.evaluator.evaluate(self.engine, ai_player_idx)
 
-        # Orizzontale
-        for r in range(6):
-            row_array = [int(i) for i in list(board_matrix[r, :])]
-            for c in range(7 - 3):
-                window = row_array[c:c + self.WINDOW_LENGTH]
-                score += self.evaluate_window(window, piece)
+        if self.engine.check_victory(ai_player_idx):
+            return 10000000 + depth  # Preferiamo vincere prima (depth più alta)
 
-        # Verticale
-        for c in range(7):
-            col_array = [int(i) for i in list(board_matrix[:, c])]
-            for r in range(6 - 3):
-                window = col_array[r:r + self.WINDOW_LENGTH]
-                score += self.evaluate_window(window, piece)
+        if self.engine.check_victory(opponent_idx):
+            return -10000000 - depth  # Preferiamo perdere il più tardi possibile
 
-        # Diagonale positiva
-        for r in range(6 - 3):
-            for c in range(7 - 3):
-                window = [board_matrix[r + i][c + i] for i in range(self.WINDOW_LENGTH)]
-                score += self.evaluate_window(window, piece)
+        valid_moves = [c for c in range(7) if self.engine.is_valid_location(c)]
 
-        # Diagonale negativa
-        for r in range(6 - 3):
-            for c in range(7 - 3):
-                window = [board_matrix[r + 3 - i][c + i] for i in range(self.WINDOW_LENGTH)]
-                score += self.evaluate_window(window, piece)
+        # Se non ci sono mosse valide è patta
+        if not valid_moves:
+            return 0
 
-        return score
+        if is_maximizing:
+            max_eval = float('-inf')
+            for col in valid_moves:
+                state_before = self.engine.get_state()
+                self.engine.drop_piece(col, ai_player_idx)
 
-    def is_terminal_node(self, engine):
-        """
-        * Verifica se il gioco è finito (vittoria o scacchiera piena).
-        """
-        return engine.check_victory(0) or engine.check_victory(1) or len(self.get_valid_locations(engine)) == 0
+                eval = self.minimax(depth - 1, False, alpha, beta, ai_player_idx)
 
-    def get_valid_locations(self, engine):
-        """
-        * Ritorna le colonne dove è possibile giocare.
-        """
-        valid_locations = []
-        for col in range(7):
-            if engine.is_valid_location(col):
-                valid_locations.append(col)
-        return valid_locations
+                self.engine.set_state(state_before)
 
-    def minimax(self, engine, depth, alpha, beta, maximizingPlayer):
-        """
-        * Algoritmo ricorsivo Minimax con Alpha-Beta Pruning.
-        *
-        * @param engine Copia dell'engine di gioco.
-        * @param depth Profondità residua.
-        * @param alpha Valore Alpha per pruning.
-        * @param beta Valore Beta per pruning.
-        * @param maximizingPlayer Booleano (True se tocca al Bot).
-        * @return tuple (colonna_migliore, punteggio)
-        """
-        valid_locations = self.get_valid_locations(engine)
-        is_terminal = self.is_terminal_node(engine)
+                max_eval = max(max_eval, eval)
+                alpha = max(alpha, eval)
+                if beta <= alpha: break  # Pruning
+            return max_eval
 
-        if depth == 0 or is_terminal:
-            if is_terminal:
-                if engine.check_victory(1):  # Bot vince (P2 è index 1)
-                    return (None, 100000000000000)
-                elif engine.check_victory(0):  # Umano vince (P1 è index 0)
-                    return (None, -10000000000000)
-                else:  # Pareggio
-                    return (None, 0)
-            else:  # Profondità 0
-                return (None, self.score_position(engine.get_board_matrix(), self.BOT_PIECE))
+        else:  # Minimizing Player (Avversario)
+            min_eval = float('inf')
+            for col in valid_moves:
+                state_before = self.engine.get_state()
+                self.engine.drop_piece(col, opponent_idx)
 
-        if maximizingPlayer:
-            value = -math.inf
-            column = random.choice(valid_locations)
-            for col in valid_locations:
-                temp_engine = copy.deepcopy(engine)
-                temp_engine.drop_piece(col, 1)  # Bot index 1
-                new_score = self.minimax(temp_engine, depth - 1, alpha, beta, False)[1]
-                if new_score > value:
-                    value = new_score
-                    column = col
-                alpha = max(alpha, value)
-                if alpha >= beta:
-                    break
-            return column, value
-        else:  # Minimizing player (Umano)
-            value = math.inf
-            column = random.choice(valid_locations)
-            for col in valid_locations:
-                temp_engine = copy.deepcopy(engine)
-                temp_engine.drop_piece(col, 0)  # Umano index 0
-                new_score = self.minimax(temp_engine, depth - 1, alpha, beta, True)[1]
-                if new_score < value:
-                    value = new_score
-                    column = col
-                beta = min(beta, value)
-                if alpha >= beta:
-                    break
-            return column, value
+                eval = self.minimax(depth - 1, True, alpha, beta, ai_player_idx)
 
-    def get_best_move(self, engine):
-        """
-        * Ritorna la tupla (colonna_migliore, punteggio_valutazione).
-        """
-        # Nota: ora ritorniamo entrambi i valori
-        col, minimax_score = self.minimax(engine, self.depth, -math.inf, math.inf, True)
-        return col, minimax_score
+                self.engine.set_state(state_before)
+
+                min_eval = min(min_eval, eval)
+                beta = min(beta, eval)
+                if beta <= alpha: break  # Pruning
+            return min_eval
+
+    # --- METODI DI SUPPORTO PER IL MAIN ---
 
     def get_evaluation(self, engine):
-        """
-        * Calcola una valutazione statica immediata (senza guardare mosse future).
-        * Utile per aggiornare la barra quando tocca all'umano.
-        """
-        return self.score_position(engine.get_board_matrix(), self.BOT_PIECE)
+        """Metodo helper per mostrare la barra della valutazione nella UI"""
+        # Nota: Qui assumiamo che il bot sia sempre Player 1 (Giallo/Indice 1) nel PvE
+        return self.evaluator.evaluate(engine, 1)
