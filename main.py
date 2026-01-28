@@ -95,6 +95,7 @@ def main():
                         adaptive_eval = AdaptiveEvaluator(controller.profiler)
                         selected_bot = MinimaxAgent(engine, adaptive_eval, depth=4)
 
+
                     elif event.key == pygame.K_ESCAPE:
                         app_state = STATE_MAIN_MENU
 
