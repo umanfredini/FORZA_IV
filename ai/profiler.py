@@ -6,152 +6,144 @@ e la "Mossa Effettuata" (Realtà) per calcolare i Bias cognitivi.
 """
 from ai.analysis import get_threat_mask
 
-
 class OpponentProfiler:
     def __init__(self):
         # HEATMAP DEI BIAS (1.0 = Standard)
-        # Se un valore sale, significa che l'avversario è DEBOLE in quell'area.
         self.biases = {
-            "missed_win": 1.0,  # Cecità alla propria vittoria (Killer Instinct assente)
-            "vertical_weakness": 1.0,  # Ignora minacce verticali
+            "missed_win": 1.0,           # Cecità alla propria vittoria
+            "vertical_weakness": 1.0,    # Ignora minacce verticali
             "horizontal_weakness": 1.0,  # Ignora minacce orizzontali
-            "diagonal_weakness": 1.0,  # Ignora minacce diagonali (spesso il bias più alto)
-            "threat_underestimation": 1.0  # Tendenza generale a ignorare le nostre minacce
+            "diagonal_weakness": 1.0,    # Ignora minacce diagonali
+            "threat_underestimation": 1.0 # Tendenza generale a ignorare le nostre minacce
         }
 
-        # Storico per debugging e statistiche
         self.stats = {
             "moves_analyzed": 0,
-            "fatal_errors": 0,  # Vittorie mancate o sconfitte non parate
+            "fatal_errors": 0,
         }
 
-    def update(self, engine, state_before, move_col, opponent_idx):
+    def update(self, state_before, move_col, opponent_idx):
         """
         Esegue l'autopsia della mossa avversaria.
-        Confronta lo stato PRE-mossa con la decisione presa.
+        Args:
+            state_before: Lista [bitboard_p1, bitboard_p2] PRIMA della mossa.
+            move_col: Indice colonna (0-6) dove ha giocato.
+            opponent_idx: Indice del giocatore che ha mosso (0 o 1).
         """
         self.stats["moves_analyzed"] += 1
 
         # 1. RICOSTRUZIONE STATO PRECEDENTE
-        p1_map, p2_map, heights = state_before
+        # Nota: Il controller passa self.engine.bitboards.copy(), che è [p1_bb, p2_bb]
+        p1_map = state_before[0]
+        p2_map = state_before[1]
         full_mask = p1_map | p2_map
 
-        # Determiniamo chi è chi
-        # Se opponent_idx ha appena mosso, lui è l'Attuale, noi siamo l'Altro
-        opp_pieces = p2_map if opponent_idx == 1 else p1_map  # Lui (Avversario)
-        my_pieces = p1_map if opponent_idx == 1 else p2_map  # Noi (IA)
+        # Identificazione Ruoli
+        # Se opponent_idx ha mosso, 'opp_pieces' sono i suoi pezzi
+        opp_pieces = state_before[opponent_idx]           # Chi ha mosso (Lui)
+        my_pieces = state_before[(opponent_idx + 1) % 2]  # L'altro (Noi/IA)
 
-        # Calcoliamo la bitmask della mossa appena fatta
-        # (Ci serve per vedere se interseca con le maschere delle minacce)
-        # Recuperiamo l'altezza dove è caduta la pedina:
-        # Attenzione: heights è lo stato PRIMA della mossa, quindi l'indice è corretto.
-        played_bit = 1 << heights[move_col]
+        # 2. CALCOLO DEL BIT GIOCATO
+        # Non avendo l'array 'heights', lo calcoliamo dalla full_mask.
+        # Maschera della colonna intera
+        col_mask = 0
+        for r in range(6):
+            col_mask |= (1 << (move_col * 7 + r))
+
+        # Isariamo solo i pezzi in quella colonna
+        col_pieces = full_mask & col_mask
+
+        # Il bit giocato è il primo bit zero sopra i pezzi esistenti in quella colonna.
+        # Trucco bitwise: (pieces + 1) trova il prossimo bit libero se partiamo da base colonna
+        # Ma dobbiamo fare attenzione all'offset della colonna.
+        # Metodo più sicuro e leggibile: iteriamo l'altezza.
+        played_bit = 0
+        for r in range(6):
+            bit_pos = move_col * 7 + r
+            if not (full_mask & (1 << bit_pos)):
+                played_bit = (1 << bit_pos)
+                break
+
+        if played_bit == 0:
+            # Colonna piena? Non dovrebbe succedere se la mossa è valida.
+            return
 
         # --- FASE 1: KILLER INSTINCT (Lui poteva vincere?) ---
-        # Generiamo la maschera delle SUE vittorie immediate
         winning_spots = get_threat_mask(opp_pieces, full_mask)
 
         if winning_spots > 0:
-            # Esisteva almeno una mossa vincente. Ha giocato lì?
             if (winning_spots & played_bit) == 0:
-                # ERRORE GRAVE: Poteva vincere e non l'ha fatto.
                 print(f"[PROFILER] L'avversario ha mancato una vittoria LETALE!")
                 self.biases["missed_win"] += 0.5
                 self.stats["fatal_errors"] += 1
             else:
-                # Ha vinto. O comunque ha giocato per vincere. Bravo lui.
-                pass
+                pass # Ha vinto.
 
         # --- FASE 2: DIFESA (Noi stavamo per vincere?) ---
-        # Generiamo la maschera delle NOSTRE vittorie immediate (minacce per lui)
         my_lethal_threats = get_threat_mask(my_pieces, full_mask)
 
         if my_lethal_threats > 0:
-            # Noi avevamo una vittoria pronta. Lui l'ha bloccata?
             if (my_lethal_threats & played_bit) != 0:
-                # Ha parato. Difesa solida.
-                # Riduciamo leggermente i bias (sta giocando attento)
+                # Ha parato.
                 self._decay_biases(0.01)
             else:
-                # SUICIDIO: Non ha parato la nostra vittoria.
-                # Cerchiamo di capire DI CHE TIPO era la minaccia che ha ignorato.
+                # Non ha parato.
                 print(f"[PROFILER] L'avversario non ha parato una nostra vittoria!")
                 self._analyze_missed_threat_type(my_pieces, my_lethal_threats)
                 self.biases["threat_underestimation"] += 0.3
                 self.stats["fatal_errors"] += 1
 
-        # --- FASE 3: ANALISI TATTICA (Minacce non letali ma pericolose) ---
-        # Se non c'erano vittorie immediate, controlliamo se ha ignorato la costruzione
-        # di pattern pericolosi (es. non ha chiuso una nostra diagonale aperta).
-        # Questo richiede di analizzare i pattern specifici (Verticale/Diagonale).
-        # (Implementazione raffinata che chiama l'analisi direzionale)
+        # --- FASE 3: ANALISI TATTICA ---
         if winning_spots == 0 and my_lethal_threats == 0:
             self._check_positional_errors(my_pieces, played_bit, full_mask)
 
     def _analyze_missed_threat_type(self, my_pieces, threat_mask):
-        """
-        Identifica geometricamente quale tipo di minaccia è stata ignorata
-        per aggiornare il bias specifico (Verticale vs Orizzontale vs Diagonale).
-        """
-        # Ricalcoliamo le minacce per direzione per vedere quale corrisponde alla threat_mask
-
+        """ Identifica geometricamente quale tipo di minaccia è stata ignorata """
         # Verticale
         vert = my_pieces & (my_pieces >> 1) & (my_pieces >> 2)
+        # Shift 1 * 3 = 3 (la minaccia è sopra il tris)
         if ((vert << 3) & threat_mask) != 0:
             self.biases["vertical_weakness"] += 0.2
             return
 
-        # Orizzontale
+        # Orizzontale (Shift 7)
         horiz_check = self._get_directional_threat(my_pieces, 7)
         if (horiz_check & threat_mask) != 0:
             self.biases["horizontal_weakness"] += 0.2
             return
 
-        # Diagonali (le accorpiamo o le teniamo separate)
+        # Diagonali (Shift 6 e 8)
         diag1 = self._get_directional_threat(my_pieces, 6)
         diag2 = self._get_directional_threat(my_pieces, 8)
 
         if ((diag1 | diag2) & threat_mask) != 0:
-            self.biases["diagonal_weakness"] += 0.4  # Diagonali pesano di più!
-            print("[PROFILER] Bias Aggiornato: Cecità Diagonale")
+            self.biases["diagonal_weakness"] += 0.4
+            print("[PROFILER] Bias Rilevato: Cecità Diagonale")
 
     def _get_directional_threat(self, pieces, shift):
-        # Helper veloce per isolare minacce in una sola direzione
-        # Copia della logica rigorosa di analysis.py ma per singola direzione
+        # Helper per isolare minacce in una direzione
         threats = 0
         trios = pieces & (pieces >> shift) & (pieces >> (shift * 2))
         threats |= (trios << (shift * 3)) | (trios >> shift)
 
-        # Buchi interni
         gap1 = pieces & (pieces >> shift) & (pieces >> (shift * 3))
         threats |= (gap1 << (shift * 2))
         gap2 = pieces & (pieces >> (shift * 2)) & (pieces >> (shift * 3))
         threats |= (gap2 << shift)
-
         return threats
 
     def _check_positional_errors(self, my_pieces, played_bit, full_mask):
-        """
-        Se non ci sono minacce letali, controlliamo se l'avversario
-        ci ha lasciato espandere liberamente su una diagonale.
-        """
-        # Esempio: Noi abbiamo un 2-in-fila diagonale. Lui non l'ha chiuso.
-        # Shift 6 e 8 (Diagonali)
+        """ Controlla se l'avversario ha ignorato espansioni diagonali """
         for shift in [6, 8]:
             pairs = my_pieces & (my_pieces >> shift)
-            # Spazi vitali per la coppia
             expansion_slots = (pairs >> shift) | (pairs << (shift * 2))
-            # Rimuoviamo occupati
-            expansion_slots &= ~full_mask
+            expansion_slots &= ~full_mask # Solo spazi vuoti
 
             if expansion_slots > 0:
-                # Avevamo spazio per espanderci. Ha giocato lì per bloccare?
                 if (expansion_slots & played_bit) == 0:
-                    # Non ha bloccato l'espansione diagonale. Bias lieve.
                     self.biases["diagonal_weakness"] += 0.05
 
     def _decay_biases(self, amount):
-        """ Rilassamento: se gioca bene, i bias tornano verso 1.0 """
         for k in self.biases:
             if self.biases[k] > 1.0:
                 self.biases[k] = max(1.0, self.biases[k] - amount)

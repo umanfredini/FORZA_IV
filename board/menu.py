@@ -4,6 +4,7 @@ import pygame
 STATE_MAIN_MENU = 0
 STATE_GAME = 1
 STATE_BOT_SELECT = 2
+STATE_GAME_OVER = 3
 
 
 class MenuManager:
