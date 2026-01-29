@@ -5,18 +5,19 @@ import sys
 from board.engine import GameEngine
 from board.interface import GameView
 from board.controller import GameController
-# AGGIUNTO STATE_GAME_OVER all'import
 from board.menu import MenuManager, STATE_MAIN_MENU, STATE_GAME, STATE_BOT_SELECT, STATE_GAME_OVER
 
 # --- MODULI INTELLIGENZA ARTIFICIALE ---
 from ai.minmax import MinimaxAgent
 from ai.evaluator import AdaptiveEvaluator
 from ai.bots.training_evaluators import CasualEvaluator, DiagonalBlinderEvaluator, EdgeRunnerEvaluator
+from db.persistence import GamePersistence  # Import per caricare memoria
 
 
 def main():
     pygame.init()
-    WIDTH, HEIGHT = 700, 700
+    # WIDTH AUMENTATA A 1000 PER SIDEBAR
+    WIDTH, HEIGHT = 1000, 700
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Forza 4 - AI Adattiva")
 
@@ -24,12 +25,12 @@ def main():
     view = GameView(screen)
     controller = GameController(engine, view)
     menu = MenuManager(screen)
+    persistence = GamePersistence()
 
     bot = None
     app_state = STATE_MAIN_MENU
     game_mode = "PVP"
 
-    # Variabili per gestire il Game Over
     winner_text = ""
     btn_retry_rect = None
     btn_menu_rect = None
@@ -61,23 +62,43 @@ def main():
         elif app_state == STATE_BOT_SELECT:
             menu.draw_bot_selection()
             selected_bot = None
+            bot_db_name = None  # Nome per caricare bias dal DB
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT: pygame.quit(); sys.exit()
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_1:
                         selected_bot = MinimaxAgent(engine, CasualEvaluator(), depth=2)
+                        bot_db_name = "casual_novice"
                     elif event.key == pygame.K_2:
                         selected_bot = MinimaxAgent(engine, DiagonalBlinderEvaluator(), depth=4)
+                        bot_db_name = "diagonal_blinder"
                     elif event.key == pygame.K_3:
                         selected_bot = MinimaxAgent(engine, EdgeRunnerEvaluator(), depth=3)
+                        bot_db_name = "edge_runner"
                     elif event.key == pygame.K_4:
+                        # IA ADATTIVA: Qui il profiler impara LIVE dall'umano
                         adaptive_eval = AdaptiveEvaluator(controller.profiler)
                         selected_bot = MinimaxAgent(engine, adaptive_eval, depth=4)
+                        bot_db_name = "human_player"
                     elif event.key == pygame.K_ESCAPE:
                         app_state = STATE_MAIN_MENU
 
             if selected_bot:
                 bot = selected_bot
+
+                # CARICAMENTO MEMORIA PERSISTENTE
+                # Se giochiamo contro un bot di training, carichiamo i suoi bias nel Profiler
+                # così la sidebar mostrerà le sue debolezze note.
+                if bot_db_name:
+                    latest_biases = persistence.get_latest_biases(bot_db_name)
+                    if latest_biases:
+                        print(f"[SYSTEM] Caricati bias per {bot_db_name}: {latest_biases}")
+                        controller.profiler.biases = latest_biases
+                    else:
+                        # Reset profiler se non ci sono dati
+                        controller.profiler.__init__()
+
                 controller.reset_for_new_round()
                 app_state = STATE_GAME
 
@@ -85,7 +106,8 @@ def main():
         # 3. GIOCO (Game Loop)
         # -----------------------------------------------------------------
         elif app_state == STATE_GAME:
-            view.draw(engine.get_board_matrix(), controller.stats)
+            # PASSIAMO IL PROFILER ALLA VIEW PER DISEGNARE LA SIDEBAR
+            view.draw(engine.get_board_matrix(), controller.stats, profiler=controller.profiler)
 
             # --- TURNO BOT ---
             if game_mode == "PVE" and controller.turn == 1 and not controller.game_over:
@@ -101,7 +123,6 @@ def main():
 
                     if win:
                         print(f"--- IL BOT HA VINTO! ---")
-                        # NON RESETTIAMO PIÙ SUBITO, CAMBIAMO STATO
                         winner_text = "IL BOT VINCE!"
                         app_state = STATE_GAME_OVER
 
@@ -114,17 +135,18 @@ def main():
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     if game_mode == "PVE" and controller.turn == 1: continue
                     if event.button == 1:
-                        win, player = controller.process_turn(event.pos[0])
+                        # Verifica click solo nella zona scacchiera
+                        if event.pos[0] < view.board_width:
+                            win, player = controller.process_turn(event.pos[0])
 
-                        if game_mode == "PVE" and bot:
-                            controller.stats["ai_eval"] = bot.evaluator.evaluate(engine, 1)
+                            if game_mode == "PVE" and bot:
+                                controller.stats["ai_eval"] = bot.evaluator.evaluate(engine, 1)
 
-                        if win:
-                            w_name = "GIOCATORE 1" if player == 0 else "GIOCATORE 2"
-                            print(f"--- {w_name} HA VINTO! ---")
-                            # NON RESETTIAMO PIÙ SUBITO, CAMBIAMO STATO
-                            winner_text = f"{w_name} VINCE!"
-                            app_state = STATE_GAME_OVER
+                            if win:
+                                w_name = "GIOCATORE 1" if player == 0 else "GIOCATORE 2"
+                                print(f"--- {w_name} HA VINTO! ---")
+                                winner_text = f"{w_name} VINCE!"
+                                app_state = STATE_GAME_OVER
 
             pygame.display.update()
 
@@ -132,28 +154,19 @@ def main():
         # 4. GAME OVER (Modal)
         # -----------------------------------------------------------------
         elif app_state == STATE_GAME_OVER:
-            # 1. Disegna la scacchiera sotto (così si vede la mossa finale)
-            # Nota: non serve ridisegnarla ogni frame se non cambia, ma per semplicità lo facciamo
-            view.draw(engine.get_board_matrix(), controller.stats)
-
-            # 2. Disegna il Modal sopra e ottieni i rect dei bottoni
+            view.draw(engine.get_board_matrix(), controller.stats, profiler=controller.profiler)
             btn_retry_rect, btn_menu_rect = view.draw_game_over_modal(winner_text)
 
-            # 3. Gestione Click sui Bottoni
             for event in pygame.event.get():
                 if event.type == pygame.QUIT: pygame.quit(); sys.exit()
 
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     mouse_pos = event.pos
-
-                    # Tasto RIGIOCA
                     if btn_retry_rect.collidepoint(mouse_pos):
                         controller.reset_for_new_round()
-                        app_state = STATE_GAME  # Torna a giocare
-
-                    # Tasto MENU
+                        app_state = STATE_GAME
                     elif btn_menu_rect.collidepoint(mouse_pos):
-                        app_state = STATE_MAIN_MENU  # Torna al menu principale
+                        app_state = STATE_MAIN_MENU
 
 
 if __name__ == "__main__":
