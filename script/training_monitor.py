@@ -111,7 +111,7 @@ def run_training_session(bot_type, iterations=10):
         winner, moves, final_biases = simulate_game(ai_agent, bot_agent, engine, profiler, current_starter)
 
         # Determiniamo il risultato testuale per il DB
-        result="win" if winner == "ai" else ("loss" if winner == "bot" else "draw"),
+        result="win" if winner == "ai" else ("loss" if winner == "bot" else "draw")
 
         # 5. Salvataggio Dati
         persistence.save_game_result(
