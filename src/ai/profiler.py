@@ -1,9 +1,9 @@
 """
 ai/profiler.py
 Modulo di Profilazione Comportamentale.
-Ottimizzato con .bit_count()
+Ottimizzato con .bit_count() e Clamping Strategico (Max 2.5).
 """
-from ai.analysis import get_threat_mask
+from src.ai.analysis import get_threat_mask
 
 class OpponentProfiler:
     def __init__(self):
@@ -19,6 +19,21 @@ class OpponentProfiler:
             "moves_analyzed": 0,
             "fatal_errors": 0,
         }
+
+    def _apply_bias(self, key, delta):
+        """
+        Aggiorna un bias applicando IMMEDIATAMENTE il tetto massimo di 2.5 (Clamping).
+        Questo garantisce un'IA reattiva: se l'avversario smette di sbagliare,
+        il valore scende subito sotto la soglia critica.
+        """
+        LIMIT = 2.5
+        MIN_VAL = 1.0
+
+        # Calcolo del nuovo valore
+        new_value = self.biases[key] + delta
+
+        # Applicazione dei limiti (Saturazione: min 1.0, max 2.5)
+        self.biases[key] = max(MIN_VAL, min(new_value, LIMIT))
 
     def update(self, state_before, move_col, opponent_idx):
         self.stats["moves_analyzed"] += 1
@@ -46,7 +61,8 @@ class OpponentProfiler:
         if winning_spots > 0:
             if (winning_spots & played_bit) == 0:
                 print(f"[PROFILER] L'avversario ha mancato una vittoria LETALE!")
-                self.biases["missed_win"] += 0.5
+                # Usa _apply_bias invece di +=
+                self._apply_bias("missed_win", 0.5)
                 self.stats["fatal_errors"] += 1
 
         # --- FASE 2: DIFESA ---
@@ -58,7 +74,7 @@ class OpponentProfiler:
             else:
                 print(f"[PROFILER] L'avversario non ha parato una nostra vittoria!")
                 self._analyze_missed_threat_type(my_pieces, my_lethal_threats)
-                self.biases["threat_underestimation"] += 0.3
+                self._apply_bias("threat_underestimation", 0.3)
                 self.stats["fatal_errors"] += 1
 
         # --- FASE 3: ANALISI TATTICA ---
@@ -69,13 +85,13 @@ class OpponentProfiler:
         # Verticale
         vert = my_pieces & (my_pieces >> 1) & (my_pieces >> 2)
         if ((vert << 3) & threat_mask) != 0:
-            self.biases["vertical_weakness"] += 0.2
+            self._apply_bias("vertical_weakness", 0.2)
             return
 
         # Orizzontale
         horiz_check = self._get_directional_threat(my_pieces, 7)
         if (horiz_check & threat_mask) != 0:
-            self.biases["horizontal_weakness"] += 0.2
+            self._apply_bias("horizontal_weakness", 0.2)
             return
 
         # Diagonali
@@ -83,7 +99,7 @@ class OpponentProfiler:
         diag2 = self._get_directional_threat(my_pieces, 8)
 
         if ((diag1 | diag2) & threat_mask) != 0:
-            self.biases["diagonal_weakness"] += 0.4
+            self._apply_bias("diagonal_weakness", 0.4)
             print("[PROFILER] Bias Rilevato: Cecità Diagonale")
 
     def _get_directional_threat(self, pieces, shift):
@@ -105,12 +121,14 @@ class OpponentProfiler:
 
             if expansion_slots > 0:
                 if (expansion_slots & played_bit) == 0:
-                    self.biases["diagonal_weakness"] += 0.05
+                    self._apply_bias("diagonal_weakness", 0.05)
 
     def _decay_biases(self, amount):
         for k in self.biases:
             if self.biases[k] > 1.0:
-                self.biases[k] = max(1.0, self.biases[k] - amount)
+                # Usiamo _apply_bias con valore negativo
+                self._apply_bias(k, -amount)
 
     def get_adaptive_weights(self):
+        # I valori sono già limitati a 2.5 grazie a _apply_bias
         return self.biases

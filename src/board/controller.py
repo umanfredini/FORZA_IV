@@ -1,6 +1,6 @@
 import random
 # Assicurati che questo file esista in ai/profiler.py
-from ai.profiler import OpponentProfiler
+from src.ai.profiler import OpponentProfiler
 
 
 class GameController:

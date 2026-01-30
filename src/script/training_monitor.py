@@ -10,12 +10,12 @@ import random
 # Hack per path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from board.engine import GameEngine
-from ai.minmax import MinimaxAgent
-from ai.evaluator import AdaptiveEvaluator
-from ai.profiler import OpponentProfiler
-from db.persistence import GamePersistence
-from ai.bots.training_evaluators import DiagonalBlinderEvaluator, EdgeRunnerEvaluator, CasualEvaluator
+from src.board.engine import GameEngine
+from src.ai.minmax import MinimaxAgent
+from src.ai.evaluator import AdaptiveEvaluator
+from src.ai.profiler import OpponentProfiler
+from src.db.persistence import GamePersistence
+from src.ai.bots.training_evaluators import DiagonalBlinderEvaluator, EdgeRunnerEvaluator, CasualEvaluator
 
 def simulate_game(ai_agent, bot_agent, engine, profiler, starting_player, starting_biases=None):
     """
