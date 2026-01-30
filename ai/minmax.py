@@ -2,92 +2,114 @@
 ai/minimax.py
 Motore Decisionale Generico.
 Implementa l'algoritmo Minimax con Alpha-Beta Pruning ottimizzato per Bitboard.
-Non contiene logica di punteggio: delega tutto all'Evaluator passato nel costruttore.
+Include:
+1. Move Ordering (Centro -> Esterno)
+2. Transposition Table (Memoria Cache)
 """
 import random
 
 
 class MinimaxAgent:
+    # Ordine di ricerca ottimizzato: Centro -> Esterno
+    CENTER_ORDER = [3, 2, 4, 1, 5, 0, 6]
+
+    # Flag per la Transposition Table
+    FLAG_EXACT = 0
+    FLAG_LOWERBOUND = 1 # Alpha
+    FLAG_UPPERBOUND = 2 # Beta
+
     def __init__(self, engine, evaluator, depth=4):
         self.engine = engine
         self.evaluator = evaluator
         self.depth = depth
+        # Dizionario per la memoria: Key=(p1_bitboard, p2_bitboard), Value=(score, depth, flag)
+        self.transposition_table = {}
 
     def choose_move(self, player_idx):
         """
         Punto di ingresso pubblico.
-        Restituisce l'indice della colonna migliore (0-6).
         """
-        # 1. Recupero mosse valide
-        valid_moves = [c for c in range(7) if self.engine.is_valid_location(c)]
+        # Pulizia parziale o totale della tabella?
+        # Per ora la manteniamo tra le mosse della stessa partita per massimizzare la velocità.
+        # (Opzionale: self.transposition_table.clear() se si vuole meno memoria usata)
 
-        # 2. Ottimizzazione "Killer Move": Se c'è una vittoria immediata, prendila subito!
-        # Questo evita di lanciare l'intera ricorsione per una scelta ovvia.
+        # 1. Recupero mosse valide (Move Ordering)
+        valid_moves = [c for c in self.CENTER_ORDER if self.engine.is_valid_location(c)]
+
+        # 2. Killer Move
         for col in valid_moves:
             if self.engine.is_winning_move(col, player_idx):
                 return col
 
-        # 3. Avvio Ricorsione Minimax
+        # 3. Minimax
         best_score = float('-inf')
-        best_col = random.choice(valid_moves)  # Fallback casuale
-
+        best_col = valid_moves[0] if valid_moves else random.choice([0, 1, 2, 3, 4, 5, 6])
         alpha = float('-inf')
         beta = float('inf')
 
-        # Ordiniamo le mosse? Per ora casuale, ma potremmo ordinare per colonna centrale
-        # per migliorare l'alpha-beta pruning (il centro è spesso migliore).
-
         for col in valid_moves:
-            # --- SALVATAGGIO STATO VELOCE (No deepcopy!) ---
-            # Bitboard engine permette di salvare lo stato con pochi interi
             state_before = self.engine.get_state()
-
-            # Simuliamo la mossa
             self.engine.drop_piece(col, player_idx)
 
-            # Chiamiamo minimax per l'avversario (depth - 1)
-            # Passiamo False perché ora tocca all'avversario (minimizzare il nostro score)
             score = self.minimax(self.depth - 1, False, alpha, beta, player_idx)
 
-            # --- RIPRISTINO STATO ---
             self.engine.set_state(state_before)
 
             if score > best_score:
                 best_score = score
                 best_col = col
 
-            # Aggiornamento Alpha (miglior risultato che possiamo assicurarci)
             alpha = max(alpha, best_score)
 
         return best_col
 
     def minimax(self, depth, is_maximizing, alpha, beta, ai_player_idx):
-        """
-        Nucleo ricorsivo dell'algoritmo.
-        ai_player_idx: Chi è il bot che sta pensando (sempre fisso).
-        is_maximizing: True se tocca al bot, False se tocca all'avversario.
-        """
-        # Identifichiamo l'avversario
+        # Salviamo alpha originale per determinare il flag della TT alla fine
+        alpha_orig = alpha
+
+        # --- 1. TRANSPOSITION TABLE LOOKUP ---
+        # Creiamo una chiave unica basata sulle bitboard (che rappresentano univocamente lo stato)
+        # Nota: Includiamo 'is_maximizing' nella logica o assumiamo che lo stato implichi il turno?
+        # Per sicurezza usiamo le bitboard.
+        state_key = (self.engine.bitboards[0], self.engine.bitboards[1])
+
+        if state_key in self.transposition_table:
+            tt_entry = self.transposition_table[state_key]
+            tt_val, tt_depth, tt_flag = tt_entry
+
+            # Usiamo il valore solo se la profondità salvata è >= a quella richiesta
+            # (ovvero abbiamo analizzato questo stato "abbastanza a fondo" in passato)
+            if tt_depth >= depth:
+                if tt_flag == self.FLAG_EXACT:
+                    return tt_val
+                elif tt_flag == self.FLAG_LOWERBOUND:
+                    alpha = max(alpha, tt_val)
+                elif tt_flag == self.FLAG_UPPERBOUND:
+                    beta = min(beta, tt_val)
+
+                if alpha >= beta:
+                    return tt_val
+
+        # --- Logica Standard Minimax ---
         opponent_idx = (ai_player_idx + 1) % 2
 
-        # CASO BASE: Foglia raggiunta o Partita Finita
         if depth == 0:
             return self.evaluator.evaluate(self.engine, ai_player_idx)
 
         if self.engine.check_victory(ai_player_idx):
-            return 10000000 + depth  # Preferiamo vincere prima (depth più alta)
+            return 10000000 + depth
 
         if self.engine.check_victory(opponent_idx):
-            return -10000000 - depth  # Preferiamo perdere il più tardi possibile
+            return -10000000 - depth
 
-        valid_moves = [c for c in range(7) if self.engine.is_valid_location(c)]
-
-        # Se non ci sono mosse valide è patta
+        valid_moves = [c for c in self.CENTER_ORDER if self.engine.is_valid_location(c)]
         if not valid_moves:
             return 0
 
+        best_val = 0 # Placeholder
+
         if is_maximizing:
-            max_eval = float('-inf')
+            best_val = float('-inf')
             for col in valid_moves:
                 state_before = self.engine.get_state()
                 self.engine.drop_piece(col, ai_player_idx)
@@ -95,14 +117,11 @@ class MinimaxAgent:
                 eval = self.minimax(depth - 1, False, alpha, beta, ai_player_idx)
 
                 self.engine.set_state(state_before)
-
-                max_eval = max(max_eval, eval)
+                best_val = max(best_val, eval)
                 alpha = max(alpha, eval)
-                if beta <= alpha: break  # Pruning
-            return max_eval
-
-        else:  # Minimizing Player (Avversario)
-            min_eval = float('inf')
+                if beta <= alpha: break
+        else:
+            best_val = float('inf')
             for col in valid_moves:
                 state_before = self.engine.get_state()
                 self.engine.drop_piece(col, opponent_idx)
@@ -110,15 +129,20 @@ class MinimaxAgent:
                 eval = self.minimax(depth - 1, True, alpha, beta, ai_player_idx)
 
                 self.engine.set_state(state_before)
-
-                min_eval = min(min_eval, eval)
+                best_val = min(best_val, eval)
                 beta = min(beta, eval)
-                if beta <= alpha: break  # Pruning
-            return min_eval
+                if beta <= alpha: break
 
-    # --- METODI DI SUPPORTO PER IL MAIN ---
+        # --- 2. TRANSPOSITION TABLE STORE ---
+        tt_flag = self.FLAG_EXACT
+        if best_val <= alpha_orig:
+            tt_flag = self.FLAG_UPPERBOUND
+        elif best_val >= beta:
+            tt_flag = self.FLAG_LOWERBOUND
+
+        self.transposition_table[state_key] = (best_val, depth, tt_flag)
+
+        return best_val
 
     def get_evaluation(self, engine):
-        """Metodo helper per mostrare la barra della valutazione nella UI"""
-        # Nota: Qui assumiamo che il bot sia sempre Player 1 (Giallo/Indice 1) nel PvE
         return self.evaluator.evaluate(engine, 1)

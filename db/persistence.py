@@ -78,3 +78,29 @@ class GamePersistence:
             "win_rate": (wins / total) * 100 if wins else 0,
             "avg_moves": round(avg_moves, 2)
         }
+
+    def get_latest_biases(self, opponent_name):
+        """
+        Recupera l'ultimo set di bias salvato per questo avversario.
+        Permette all'IA di 'ricordare' le debolezze scoperte in sessioni passate.
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Ordiniamo per ID decrescente per prendere l'ultima partita giocata
+        cursor.execute('''
+                       SELECT biases_json
+                       FROM games
+                       WHERE opponent = ?
+                       ORDER BY id DESC LIMIT 1
+                       ''', (opponent_name,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            try:
+                return json.loads(row[0])
+            except json.JSONDecodeError:
+                return None
+        return None

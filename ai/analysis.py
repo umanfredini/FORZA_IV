@@ -1,7 +1,7 @@
 """
 ai/analysis.py
 Versione Ingegneristica Definitiva.
-Nessuna approssimazione: controllo simmetrico di tutti i lati e dei buchi.
+Ottimizzato con .bit_count() per Python 3.10+
 """
 
 
@@ -39,29 +39,23 @@ def count_all_patterns(my_pieces, full_mask):
     """
     Censisce ogni struttura (2 o 3 pezzi) che ha lo spazio vitale
     per diventare un 4-in-fila in futuro.
+    Ottimizzato usando .bit_count() invece di bin().count().
     """
     stats = {'threes': 0, 'twos': 0}
     empty = ~full_mask
 
     # --- ANALISI TRIS ---
     # Usiamo direttamente get_threat_mask per coerenza.
-    # Ogni bit acceso nella maschera delle minacce è un modo diverso di vincere.
-    # Se un tris è aperto da entrambi i lati (_XXX_), get_threat_mask avrà 2 bit accesi.
-    # Questo è corretto: vale doppio!
     threat_map = get_threat_mask(my_pieces, full_mask)
-    stats['threes'] = bin(threat_map).count('1')
+    # OTTIMIZZAZIONE QUI:
+    stats['threes'] = threat_map.bit_count()
 
     # --- ANALISI COPPIE (Rigorosa) ---
-    # Una coppia XX è utile solo se ci sono altri 2 spazi liberi nella stessa linea
-    # per arrivare a 4. Controlliamo tutte le combinazioni:
-    # _ _ X X , _ X X _ , X X _ _ , X _ X _ , ecc.
-
     for shift in [7, 6, 8, 1]:
         # 1. Coppie consecutive (XX)
         pairs = my_pieces & (my_pieces >> shift)
 
         # Rileviamo gli spazi liberi intorno alla coppia
-        # Usiamo degli shift per vedere se le celle adiacenti sono 'empty'
         e1_left = (empty << shift)
         e2_left = (empty << (shift * 2))
         e1_right = (empty >> (shift * 2))
@@ -87,6 +81,7 @@ def count_all_patterns(my_pieces, full_mask):
 
         # Sommiamo tutti i bit validi trovati
         combined_twos = v1 | v2 | v3 | v4 | v5
-        stats['twos'] += bin(combined_twos).count('1')
+        # OTTIMIZZAZIONE QUI:
+        stats['twos'] += combined_twos.bit_count()
 
     return stats
