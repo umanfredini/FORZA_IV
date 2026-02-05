@@ -62,3 +62,10 @@ coverage.xml
 .DS_Store
 Thumbs.db
 .idea/FORZA_IV.iml
+
+# LaTeX junk files
+*.aux
+*.log
+*.out
+*.toc
+*.gz

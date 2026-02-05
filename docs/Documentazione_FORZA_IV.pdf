@@ -1,0 +1,321 @@
+\documentclass[12pt,a4paper]{article}
+
+% ==========================
+% == PACCHETTI PRINCIPALI ==
+% ==========================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[italian]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{lmodern}
+\usepackage{setspace}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage[table]{xcolor}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{tcolorbox}
+\usepackage{lastpage}
+\usepackage{amsmath}
+\usepackage{url}
+
+% ==========================
+% == CONFIGURAZIONE BASE ===
+% ==========================
+\geometry{margin=2.5cm}
+\onehalfspacing
+\setcounter{tocdepth}{3}
+\setcounter{secnumdepth}{3}
+
+% === Colori ===
+\definecolor{darkgray}{gray}{0.25}
+\definecolor{lightgray}{gray}{0.95}
+\definecolor{uniblue}{HTML}{003366}
+
+% === Stile titoli ===
+\titleformat{\section}{\normalfont\Large\bfseries\color{uniblue}}{\thesection.}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries\color{uniblue}}{\thesubsection.}{1em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries\color{uniblue}}{\thesubsubsection.}{1em}{}
+
+% === Link nel PDF ===
+\hypersetup{
+	colorlinks=true,
+	linkcolor=uniblue,
+	urlcolor=uniblue,
+	pdftitle={Documentazione - Adaptive Bitboard Engine},
+	pdfauthor={Gruppo Manfredini-Romano},
+}
+
+% ==========================
+% ==== HEADER & FOOTER =====
+% ==========================
+\fancypagestyle{standard}{
+	\fancyhf{}
+	\fancyfoot[L]{\small\textbf{UNISA – Corso di Fondamenti d'Intelligenza Artificiale}}
+	\fancyfoot[R]{\small\textbf{Pag. \thepage \quad | \quad \pageref{LastPage}}}
+	
+	\fancyhead[L]{\small\textbf{Adaptive Bitboard Engine | Documentazione}}
+	\fancyhead[R]{\small\textit{\nouppercase{\leftmark}}}
+	
+	\renewcommand{\headrulewidth}{0.4pt}
+	\renewcommand{\footrulewidth}{0.4pt}
+}
+
+\renewcommand{\sectionmark}[1]{\markboth{#1}{}}
+
+% ==========================
+% ====== FRONTESPIZIO ======
+% ==========================
+\begin{document}
+	\thispagestyle{empty}
+	
+	% --- Intestazione istituzionale ---
+	\begin{minipage}{0.75\textwidth}
+		{\LARGE \textbf{Università degli Studi di Salerno}}\\
+		{\large Corso di Ingegneria del Software}
+	\end{minipage}
+	\hfill
+	\begin{minipage}{0.2\textwidth}
+		\raggedleft
+		\IfFileExists{images/logo_unisa.png}{%
+			\includegraphics[width=3cm]{images/logo_unisa.png}%
+		}{%
+			\framebox{\parbox[c][3cm][c]{3cm}{\centering\small\textbf{LOGO\\UNISA}}}%
+		}
+	\end{minipage}
+	\\[0.2cm]
+	{\color{uniblue}\rule{\textwidth}{0.4pt}}
+	\vspace{1.8cm}
+	
+	% --- Logo del progetto ---
+	\begin{center}
+		\IfFileExists{images/logo_Forza_IV.png}{%
+			\includegraphics[width=7cm]{images/logo_Forza_IV.png}%
+		}{%
+			\framebox{\parbox[c][4cm][c]{7cm}{\centering\textbf{LOGO PROGETTO}}}\\[1cm]%
+		}
+		
+		{\Huge \textbf{Adaptive Bitboard Engine}}\\[0.5cm]
+		{\Large \textbf{Documentazione di Progetto - Versione 1.1}}\\[2cm]
+		
+		\vspace{1cm}
+		\begin{tcolorbox}[colback=lightgray!10, colframe=uniblue,
+			title=Informazioni Generali, fonttitle=\bfseries]
+			\renewcommand{\arraystretch}{1.3}
+			\begin{tabularx}{\textwidth}{l X}
+				\textbf{Corso di Laurea:} & Informatica \\
+				\textbf{Università:} & Università degli Studi di Salerno (UNISA) \\
+				\textbf{Docente:} & Chiar.mo Prof. PALOMBA \\
+				\textbf{Data:} & 05/02/2026 \\
+				\textbf{Anno Accademico:} & 2025/2026 \\
+			\end{tabularx}
+		\end{tcolorbox}
+		
+	\end{center}
+	
+	\clearpage
+	\thispagestyle{empty}
+	
+	% ==========================
+	% === MEMBRI DEL GRUPPO ===
+	% ==========================
+	
+	\vspace*{1cm}
+	{\Large\bfseries\color{uniblue} Membri Del Gruppo}\\[-0.2cm]
+	\color{uniblue}\rule{\textwidth}{0.4pt}\\[0.6cm]
+	
+	\renewcommand{\arraystretch}{1.3}
+	\setlength{\tabcolsep}{10pt}
+	
+	\begin{center}
+		\begin{tcolorbox}[colback=lightgray!10, colframe=uniblue, fonttitle=\bfseries]
+			\begin{tabularx}{\textwidth}{l X}
+				\textbf{MANFREDINI Umberto} & Matricola 0512119797 \\
+				\textbf{ROMANO Pino Fiorello} & Matricola 0512120259 \\
+			\end{tabularx}
+		\end{tcolorbox}
+	\end{center}
+	
+	\vspace{1cm}
+	
+	% ==========================
+	% === REVISION HISTORY ===
+	% ==========================
+	
+	\vspace*{1cm}
+	{\Large\bfseries\color{uniblue} Revision History}\\[-0.2cm]
+	\color{uniblue}\rule{\textwidth}{0.4pt}\\[0.6cm]
+	
+	\renewcommand{\arraystretch}{1.3}
+	
+	\begin{center}
+		\rowcolors{2}{lightgray!30}{white}
+		\setlength{\arrayrulewidth}{0.6pt} 
+		\begin{tabularx}{\textwidth}{c c X c}
+			\toprule
+			\rowcolor{uniblue!20}
+			\textbf{Data} & \textbf{Versione} & \textbf{Descrizione} & \textbf{Autore} \\
+			\midrule
+			30/01/2026 & 1.0 & Capitolo 1 (Introduzione e Visione) & Gruppo \\
+			\midrule
+			05/02/2026 & 1.1 & Capitolo 2 (Architettura e Scelte Tecnologiche) & Gruppo \\
+			\bottomrule
+		\end{tabularx}
+	\end{center}
+	
+	\clearpage
+	
+	\newpage
+	\pagestyle{standard}
+	
+	% ==========================
+	% ======== INDICE ==========
+	% ==========================
+	
+	\tableofcontents
+	\newpage
+	
+	% =============================================
+	% ===== CAPITOLO 1: INTRODUZIONE ==============
+	% =============================================
+	
+	\section{Introduzione e Visione Progettuale}
+	
+	\subsection{Abstract}
+	Il gioco del Forza 4 (\textit{Connect Four}) rappresenta, nel campo dell'Intelligenza Artificiale, un problema di ricerca spaziale a informazione perfetta risolto matematicamente. Sebbene esistano algoritmi in grado di giocare perfettamente, le implementazioni tradizionali basate esclusivamente sulla Teoria dei Giochi classica tendono a produrre agenti ``statici'', incapaci di adattarsi alla variabilità dello stile umano.
+	
+	Il presente progetto propone lo sviluppo di un motore decisionale ibrido, denominato \textbf{Adaptive Bitboard Engine}. Il sistema integra un algoritmo di ricerca \textit{Minimax} con \textit{Alpha-Beta Pruning} ad alte prestazioni — basato su rappresentazione \textit{Bitboard} per massimizzare l'efficienza computazionale \cite{bitboards} — con un innovativo modulo di \textbf{Profilazione Comportamentale}. L'obiettivo è superare il concetto di ``mossa ottimale assoluta'' per approdare alla ``mossa ottimale relativa'', massimizzando la probabilità di vittoria attraverso lo sfruttamento dei bias cognitivi dell'avversario.
+	
+	\subsection{Limiti della Teoria dei Giochi Classica}
+	Nella sua formulazione classica, un agente basato su \textit{Minimax} opera sotto l'assunto di razionalità perfetta: si presuppone che l'avversario (il giocatore \textit{Minimizing}) esegua sempre la contromossa migliore possibile.
+	Come formalizzato da Knuth e Moore \cite{alpha_beta}, la funzione di valore $V(s)$ per uno stato $s$ è definita ricorsivamente come:
+	
+	\begin{equation}
+		V(s) = \max_{a \in A} \left( \min_{b \in B} f(s') \right)
+	\end{equation}
+	
+	Sebbene l'ottimizzazione tramite \textit{Alpha-Beta Pruning} permetta di ridurre significativamente lo spazio di ricerca \cite{alpha_beta}, questo approccio presenta limiti intrinseci nell'interazione uomo-macchina:
+	
+	\begin{itemize}
+		\item \textbf{Rigidità Strategica:} L'agente ignora le opportunità derivanti da errori non forzati dell'avversario se questi non rientrano nel suo orizzonte di calcolo (\textit{Horizon Effect}), limitandosi a parare minacce che un giocatore umano potrebbe non aver visto.
+		\item \textbf{Mancanza di Personalizzazione:} L'agente non distingue tra un esperto e un novizio. Come evidenziato da Wang et al. \cite{connect4_optim}, l'efficacia di un'euristica dipende fortemente dal contesto della partita; un'euristica statica non può capitalizzare su errori sistematici (pattern ricorrenti) dell'avversario.
+	\end{itemize}
+	
+	\subsection{Obiettivo del Progetto}
+	L'obiettivo primario è la realizzazione di un agente intelligente capace di evolvere la propria strategia in \textit{Real-Time}.
+	Il sistema non si limita a calcolare la mossa migliore sulla scacchiera, ma osserva il comportamento dell'utente per costruire un \textbf{Profilo Psicologico} dinamico, ispirandosi ai principi di modellazione dell'avversario teorizzati da Spronck et al. \cite{opponent_model}.
+	
+	Se il sistema rileva che l'avversario soffre di ``cecità diagonale'' (incapacità di scorgere minacce su linee oblique), l'algoritmo di valutazione euristica aumenta dinamicamente il peso specifico dei pattern diagonali. Questa architettura sposta il focus dalla pura potenza di calcolo alla flessibilità cognitiva, creando un'esperienza di gioco più sfidante e organica.
+	
+	\subsection{Paradigma di Apprendimento}
+	Il paradigma adottato si distacca dalle moderne tecniche di \textit{Deep Reinforcement Learning} ("Black Box") per abbracciare un approccio definito \textbf{Apprendimento Euristico-Deterministico} ("White Box"). Invece di addestrare una rete neurale opaca su milioni di iterazioni generiche, il sistema è progettato per adattare esplicitamente i parametri della propria funzione di valutazione in risposta agli stimoli diretti dell'avversario corrente \cite{adaptive_difficulty}.
+	
+	Questa scelta garantisce due vantaggi fondamentali per il contesto accademico e applicativo:
+	\begin{itemize}
+		\item \textbf{Trasparenza Decisionale:} Ogni scelta dell'IA è tracciabile e giustificabile. È possibile in ogni momento interrogare il sistema per comprendere \textit{perché} ha preferito una mossa rischiosa (es. ``Perché ho rilevato che l'avversario ignora le diagonali'').
+		\item \textbf{Adattamento Immediato:} A differenza dei modelli statistici che richiedono grandi quantità di dati per convergere, l'approccio euristico permette all'agente di modificare la propria strategia già dopo poche mosse significative, offrendo un feedback immediato all'utente.
+	\end{itemize}
+	
+	\newpage
+	
+	% =============================================
+	% ===== CAPITOLO 2: ARCHITETTURA ==============
+	% =============================================
+	
+	\section{Architettura del Sistema e Scelte Tecnologiche}
+	
+	\subsection{Pattern Architetturale: MVC}
+	Per garantire la manutenibilità del codice e la separazione delle responsabilità, il sistema è stato progettato seguendo il pattern architetturale \textbf{Model-View-Controller (MVC)}.
+	Questa struttura permette di isolare la logica computazionale dell'intelligenza artificiale dalla gestione dell'interfaccia utente, facilitando lo sviluppo parallelo e il testing dei singoli componenti.
+	
+	\begin{itemize}
+		\item \textbf{Model (src/board/engine.py):} Rappresenta il nucleo del sistema. Include la rappresentazione dello stato del gioco tramite Bitboard, l'algoritmo Minimax e il modulo di profilazione. È responsabile di tutta la logica decisionale e delle regole di validazione.
+		\item \textbf{View (src/board/interface.py):} Gestisce esclusivamente la rappresentazione grafica utilizzando la libreria \texttt{Pygame}. Si occupa del rendering della griglia, delle animazioni e della visualizzazione delle metriche di debug (es. bias correnti), senza possedere alcuna logica di gioco.
+		\item \textbf{Controller (src/board/controller.py):} Agisce da intermediario, intercettando gli input dell'utente e orchestrando il flusso di gioco. Sincronizza lo stato del Model con l'aggiornamento della View e gestisce l'alternanza dei turni e il ciclo di vita della partita.
+	\end{itemize}
+	
+	\subsection{Core Tecnologico: Bitboard Engine}
+	La scelta più critica per le prestazioni di un motore di ricerca in uno spazio degli stati vasto come quello del Forza 4 ($4.5 \times 10^{12}$ posizioni possibili \cite{allis_search}) ricade sulla struttura dati.
+	Abbiamo abbandonato la rappresentazione classica a matrice bidimensionale ($6 \times 7$) in favore delle \textbf{Bitboard}.
+	
+	Ogni stato del gioco è rappresentato da due interi a 64 bit (\texttt{uint64}):
+	\begin{itemize}
+		\item \texttt{position}: Una maschera che indica tutte le celle occupate (da entrambi i giocatori).
+		\item \texttt{mask}: Una maschera che indica le celle occupate solo dal giocatore corrente.
+	\end{itemize}
+	
+	Questa rappresentazione permette di verificare le condizioni di vittoria e le minacce non tramite costosi cicli iterativi, ma attraverso operazioni bitwise ($O(1)$) supportate nativamente dalla CPU. Ad esempio, per rilevare un allineamento orizzontale, è sufficiente un'operazione di \textit{shift} e \textit{AND} logico:
+	\begin{verbatim}
+		m = position & (position >> 7)
+		if (m & (m >> 14)): return True  // Vittoria rilevata
+	\end{verbatim}
+	Questo approccio riduce i tempi di calcolo di ordini di grandezza rispetto all'uso di array, abilitando una profondità di ricerca maggiore per l'algoritmo Minimax.
+	
+	\subsection{Persistenza e Integrità dei Dati}
+	Per supportare il modulo di apprendimento incrementale, è stato necessario implementare un sistema di persistenza robusto. A differenza di soluzioni basate su file JSON o CSV, che soffrono di problemi di concorrenza e integrità in caso di chiusura imprevista, è stato adottato \textbf{SQLite}.
+	
+	L'utilizzo di un database relazionale embedded garantisce le proprietà necessarie per le sessioni di training massivo ("Headless"). Ogni partita conclusa viene salvata come una transazione atomica contenente:
+	\begin{itemize}
+		\item Metadati della sessione (Timestamp, ID Avversario).
+		\item Esito della partita e numero di mosse.
+		\item Snapshot dei bias cognitivi appresi dal Profiler.
+	\end{itemize}
+	Questo permette di interrompere e riprendere l'addestramento senza perdita di informazioni e facilita l'analisi statistica dei risultati tramite query SQL complesse.
+	
+	\subsection{Modularità e Design Patterns}
+	Il sistema AI è stato progettato per essere estensibile senza modifiche al codice sorgente del motore di ricerca.
+	
+	L'algoritmo Minimax è implementato come un motore generico che accetta in input un oggetto \texttt{Evaluator}. Questo ci ha permesso di implementare una strategia flessibile:
+	\begin{itemize}
+		\item \textbf{Training Bots:} Utilizzano evaluator statici con "difetti" programmati \\ (es. \texttt{DiagonalBlinderEvaluator}).
+		\item \textbf{Adaptive AI:} Utilizza l'\texttt{AdaptiveEvaluator}, che interroga il Profiler in tempo reale.
+	\end{itemize}
+	Tale architettura permette di creare nuovi scenari di test o nuove personalità di gioco semplicemente iniettando una diversa classe di valutazione, mantenendo inalterato il core algoritmico.
+	
+	\newpage
+	
+	% ==========================
+	% ===== BIBLIOGRAFIA =======
+	% ==========================
+	\addcontentsline{toc}{section}{Bibliografia}
+	\begin{thebibliography}{9}
+		
+		\bibitem{alpha_beta}
+		D. E. Knuth and R. W. Moore,
+		\textit{An analysis of alpha-beta pruning},
+		in \textit{Artificial Intelligence}, vol. 6, no. 4, pp. 293-326, 1975.
+		
+		\bibitem{bitboards}
+		J. Tromp,
+		\textit{The Fhourstones Benchmark},
+		\url{http://tromp.github.io/c4/fhour.html}.
+		(Accesso: Gennaio 2026).
+		
+		\bibitem{connect4_optim}
+		K. Wang et al.,
+		\textit{Research on Different Heuristics for Minimax Algorithm: Insight from Connect-4 Game},
+		in \textit{Proceedings of 2019 International Conference on Computing and Artificial Intelligence}, 2019.
+		
+		\bibitem{opponent_model}
+		P. Spronck, I. Sprinkhuizen-Kuyper, and E. Postma,
+		\textit{Opponent Modelling for Case-Based Adaptive Game AI},
+		in \textit{Entertainment Computing - ICEC 2004}, Springer, 2004.
+		
+		\bibitem{adaptive_difficulty}
+		H. Silva et al.,
+		\textit{Dynamic Difficulty Adjustment through an Adaptive AI},
+		in \textit{ResearchGate Publications}, 2017.
+		
+		\bibitem{allis_search}
+		L. V. Allis,
+		\textit{Searching for Solutions in Games and Artificial Intelligence},
+		Ph.D. Thesis, University of Limburg, Maastricht, 1994.
+		
+	\end{thebibliography}
+	
+\end{document}
