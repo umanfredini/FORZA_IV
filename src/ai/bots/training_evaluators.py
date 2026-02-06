@@ -2,8 +2,9 @@
 ai/bots/training_evaluators.py
 Evaluator specializzati per l'allenamento.
 Replicano i bias e i difetti dei vecchi bot usando la nuova tecnologia Bitboard.
+Include un fattore di 'Rumore' (Noise) per simulare l'errore umano.
 """
-
+import random
 
 class TrainingBaseEvaluator:
     """
@@ -32,7 +33,8 @@ class TrainingBaseEvaluator:
         self.center_col_idx = 3
 
     def evaluate(self, engine, player_idx):
-        # 1. Controllo Vittoria/Sconfitta (Immediata)
+        # 1. Controllo Vittoria/Sconfitta (Immediata - NO RUMORE QUI)
+        # Se c'è una vittoria certa, il bot non deve avere dubbi.
         if engine.check_victory(player_idx): return self.SCORE_WIN
         opponent_idx = (player_idx + 1) % 2
         if engine.check_victory(opponent_idx): return -self.SCORE_WIN
@@ -49,7 +51,8 @@ class TrainingBaseEvaluator:
         for r in range(6):
             center_mask |= (1 << (self.center_col_idx * 7 + r))
 
-        my_center_count = bin(my_pieces & center_mask).count('1')
+        # Ottimizzazione: .bit_count() invece di bin().count()
+        my_center_count = (my_pieces & center_mask).bit_count()
         score += (my_center_count * self.SCORE_CENTER * self.weights['center_bias'])
 
         # 3. Analisi Pattern per Direzione
@@ -66,6 +69,12 @@ class TrainingBaseEvaluator:
         score += self._score_direction(my_pieces, opp_pieces, empty_mask, 8,
                                        self.weights['diagonal_attack'], self.weights['diagonal_defense'])
 
+        # 4. APPLICAZIONE RUMORE (Noise)
+        # Variamo il punteggio del +/- 20% per simulare indecisione o errore di giudizio.
+        # Moltiplichiamo per un fattore casuale tra 0.8 (80%) e 1.2 (120%).
+        noise_factor = random.uniform(0.8, 1.2)
+        score *= noise_factor
+
         return score
 
     def _score_direction(self, my_p, opp_p, empty, shift, w_attack, w_defense):
@@ -73,71 +82,53 @@ class TrainingBaseEvaluator:
         net_score = 0
 
         # --- MIEI PUNTI (Attacco) ---
-        # 3 in fila (con spazio)
-        # Cerchiamo pattern XXX_ o _XXX ecc.
-        # Semplificazione veloce bitwise: (bits & (bits>>s) & (bits>>2s))
+        # 3 in fila
         my_3 = my_p & (my_p >> shift) & (my_p >> (shift * 2))
-        # Validiamo con spazio vuoto
         valid_my_3 = (my_3 >> shift) & empty | (my_3 << (shift * 3)) & empty
 
-        # 2 in fila (con spazio)
+        # 2 in fila
         my_2 = my_p & (my_p >> shift)
         valid_my_2 = (my_2 >> shift) & empty
 
-        net_score += bin(valid_my_3).count('1') * self.SCORE_3 * w_attack
-        net_score += bin(valid_my_2).count('1') * self.SCORE_2 * w_attack
+        # Ottimizzazione .bit_count()
+        net_score += valid_my_3.bit_count() * self.SCORE_3 * w_attack
+        net_score += valid_my_2.bit_count() * self.SCORE_2 * w_attack
 
         # --- PUNTI AVVERSARIO (Difesa) ---
-        # 3 in fila avversari (Minaccia!)
         opp_3 = opp_p & (opp_p >> shift) & (opp_p >> (shift * 2))
         valid_opp_3 = (opp_3 >> shift) & empty | (opp_3 << (shift * 3)) & empty
 
-        # Sottraiamo punti in base al peso difensivo
-        # Se w_defense è basso (es. 0.25), sottraiamo poco -> il bot ignora la minaccia
-        net_score -= bin(valid_opp_3).count('1') * self.DEFENSE_WEIGHT_3 * w_defense
+        net_score -= valid_opp_3.bit_count() * self.DEFENSE_WEIGHT_3 * w_defense
 
         return net_score
 
 
 # ==============================================================================
-# 1. IL NOVIZIO (Casual Human) - Depth consigliata: 2
+# 1. IL NOVIZIO (Casual Human)
 # ==============================================================================
 class CasualEvaluator(TrainingBaseEvaluator):
     def __init__(self):
         super().__init__()
-        # Pesi standard (1.0).
-        # Replica esattamente il punteggio del tuo "MinimaxBotNovice"
-        # (+100 win, +5 trio, +2 pair, -4 threat, +3 center)
         pass
 
-    # ==============================================================================
 
-
-# 2. IL CIECO DIAGONALE (Diagonal Defensive Flaw) - Depth consigliata: 4
+# ==============================================================================
+# 2. IL CIECO DIAGONALE (Diagonal Defensive Flaw)
 # ==============================================================================
 class DiagonalBlinderEvaluator(TrainingBaseEvaluator):
     def __init__(self):
         super().__init__()
-        # Attacco: 100% efficacia su tutto (come il tuo codice originale)
+        # Attacco: 100%
         self.weights['diagonal_attack'] = 1.0
-
-        # Difesa: DEBOLE sulle diagonali
-        # Nel tuo codice: "-1 invece di -4".
-        # Quindi il peso è 1/4 = 0.25
+        # Difesa: DEBOLE sulle diagonali (0.25)
         self.weights['diagonal_defense'] = 0.25
-
-        # Difesa Verticale/Orizzontale rimane Standard (1.0) -> -4 punti
 
 
 # ==============================================================================
-# 3. IL BORDISTA (Edge Runner) - Depth consigliata: 3
+# 3. IL BORDISTA (Edge Runner)
 # ==============================================================================
 class EdgeRunnerEvaluator(TrainingBaseEvaluator):
     def __init__(self):
         super().__init__()
-        # Strategia: Odia il centro.
-        # Invertiamo il peso del centro per renderlo negativo
+        # Odia il centro
         self.weights['center_bias'] = -20.0
-
-        # Opzionale: potremmo dare bonus alle colonne laterali,
-        # ma un malus forte al centro basta per spingerlo ai bordi.
