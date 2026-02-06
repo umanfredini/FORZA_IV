@@ -36,6 +36,9 @@ class MinimaxAgent:
         # 1. Recupero mosse valide (Move Ordering)
         valid_moves = [c for c in self.CENTER_ORDER if self.engine.is_valid_location(c)]
 
+        if not valid_moves:
+            return None  # Il controller deve gestire il pareggio reale qui
+
         # 2. Killer Move
         for col in valid_moves:
             if self.engine.is_winning_move(col, player_idx):

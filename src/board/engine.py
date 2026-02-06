@@ -87,19 +87,15 @@ class GameEngine:
     # --- METODI PER IL MINIMAX (Salvataggio Stato) ---
 
     def get_state(self):
-        """
-        Salva lo stato attuale.
-        IMPORTANTE: heights deve essere copiato con list(), altrimenti passa il riferimento!
-        """
-        return self.bitboards[0], self.bitboards[1], list(self.heights)
+        """ Aggiungiamo il counter allo snapshot dello stato """
+        return self.bitboards[0], self.bitboards[1], list(self.heights), self.counter
 
     def set_state(self, state):
-        """
-        Ripristina lo stato salvato.
-        """
-        p1, p2, h = state
+        """ Ripristiniamo anche il counter """
+        p1, p2, h, c = state
         self.bitboards = [p1, p2]
-        self.heights = list(h)  # Copia di sicurezza
+        self.heights = list(h)
+        self.counter = c  # Fondamentale!
 
     def reset(self):
         """ Ripristina tutto allo stato iniziale. """
