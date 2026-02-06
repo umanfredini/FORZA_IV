@@ -177,4 +177,5 @@ def run_training_session(bot_type, iterations=10):
 
 if __name__ == "__main__":
     # Eseguiamo poche iterazioni per vedere subito se crasha
-    run_training_session("novice", iterations=100)
+    run_training_session("diagonal_blinder", iterations=100)
+    run_training_session("edge", iterations=100)
