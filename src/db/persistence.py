@@ -37,6 +37,36 @@ class GamePersistence:
                            TEXT
                        )
                        ''')
+
+        # --- NUOVA TABELLA: OPENING BOOK ---
+        # State_Hash: Stringa univoca "BitboardP1_BitboardP2"
+        # Move: La colonna giocata (0-6)
+        # Visits: Quante volte abbiamo visto questa mossa in questo stato
+        # Wins: Quante volte chi ha fatto questa mossa ha poi vinto
+        cursor.execute('''
+                       CREATE TABLE IF NOT EXISTS opening_book
+                       (
+                           state_hash
+                           TEXT,
+                           move_col
+                           INTEGER,
+                           visits
+                           INTEGER
+                           DEFAULT
+                           0,
+                           wins
+                           INTEGER
+                           DEFAULT
+                           0,
+                           PRIMARY
+                           KEY
+                       (
+                           state_hash,
+                           move_col
+                       )
+                           )
+                       ''')
+        
         conn.commit()
         conn.close()
 
