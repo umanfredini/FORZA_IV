@@ -1,13 +1,14 @@
 """
-ai/profiler.py
-Modulo di Profilazione Comportamentale.
-Ottimizzato con .bit_count() e Clamping Strategico.
+src/ai/profiler.py
+Versione CHECK-MATE:
+Corregge il bug delle "Minacce Volanti".
+Il bias aumenta SOLO se il bot ignora una minaccia che era FISICAMENTE GIOCABILE (playable_mask).
+Questo impedirà al bias orizzontale di salire ingiustamente.
 """
 from src.ai.analysis import get_threat_mask
 
 class OpponentProfiler:
     def __init__(self):
-        # Aggiunto center_weight come richiesto
         self.biases = {
             "missed_win": 1.0,
             "vertical_weakness": 1.0,
@@ -17,120 +18,120 @@ class OpponentProfiler:
             "center_weight": 1.0
         }
 
-        self.stats = {
-            "moves_analyzed": 0,
-            "fatal_errors": 0,
+        # Learning Rates
+        self.RATES = {
+            "lethal": 0.4,      # Errore grave (vittoria mancata)
+            "strategic": 0.1,   # Errore lieve (coppia ignorata)
+            "correction": 0.20  # Correzione (ha parato!) - Aumentato per premiare la difesa
         }
 
+        self.CONFIDENCE_THRESHOLD = 1.2
+        self.ARROGANCE_THRESHOLD = 1.8
+        self.LIMIT = 2.5
+        self.SMOOTHING = 0.5
+
+        self.stats = {"moves_analyzed": 0, "fatal_errors": 0, "tactical_blunders": 0}
+
     def _apply_bias(self, key, delta):
-        """
-        Aggiorna un bias applicando IMMEDIATAMENTE il tetto massimo.
-        """
-        LIMIT = 2.5
-        MIN_VAL = 1.0
-
+        MIN_VAL = 0.8
         if key not in self.biases: return
+        smoothed_delta = delta * self.SMOOTHING
+        new_value = self.biases[key] + smoothed_delta
+        self.biases[key] = max(MIN_VAL, min(new_value, self.LIMIT))
 
-        new_value = self.biases[key] + delta
-        self.biases[key] = max(MIN_VAL, min(new_value, LIMIT))
+    def cooling_after_loss(self):
+        applied = False
+        COOLING_FACTOR = 0.2
+        for k in self.biases:
+            if self.biases[k] >= self.ARROGANCE_THRESHOLD:
+                excess = self.biases[k] - 1.0
+                self.biases[k] = 1.0 + (excess * (1 - COOLING_FACTOR))
+                applied = True
+                print(f"[PROFILER] Bias '{k}' punito (era > {self.ARROGANCE_THRESHOLD})")
+        if not applied:
+            print(f"[PROFILER] Nessun bias sopra {self.ARROGANCE_THRESHOLD}.")
 
     def update(self, state_before, move_col, opponent_idx):
-        """
-        Analizza l'ultima mossa dell'avversario.
-        state_before: tuple (p1_bitboard, p2_bitboard, heights)
-        """
         self.stats["moves_analyzed"] += 1
-
-        # Ricostruzione stato precedente
-        p1_map_old = state_before[0]
-        p2_map_old = state_before[1]
-        full_mask_old = p1_map_old | p2_map_old
-
-        # Calcolo bit giocato tramite matematica (senza loop)
-        # La nuova pedina è in cima alla colonna vecchia
-        # Recuperiamo l'altezza dalla lista heights nello state_before (indice 2)
         heights_old = state_before[2]
         played_bit = 1 << heights_old[move_col]
 
-        opp_pieces = state_before[opponent_idx] # Pezzi avversario PRIMA della mossa
-        my_pieces = state_before[(opponent_idx + 1) % 2] # Miei pezzi
+        # Maschera delle mosse legali (solo la prima cella libera per ogni colonna)
+        playable_mask = 0
+        for c in range(7):
+            if heights_old[c] < (c * 7 + 6):
+                playable_mask |= (1 << heights_old[c])
 
-        # --- FASE 1: KILLER INSTINCT (Missed Win) ---
-        # L'avversario poteva vincere ma non l'ha fatto?
-        winning_spots = get_threat_mask(opp_pieces, full_mask_old)
+        opp_pieces = state_before[opponent_idx] # Bot
+        my_pieces = state_before[(opponent_idx + 1) % 2] # IA
 
-        if winning_spots > 0:
-            if (winning_spots & played_bit) == 0:
-                print(f"[PROFILER] L'avversario ha mancato una vittoria LETALE!")
-                self._apply_bias("missed_win", 0.5)
-                self.stats["fatal_errors"] += 1
+        # 1. KILLER INSTINCT (Lethal)
+        winning_spots = get_threat_mask(opp_pieces, opp_pieces | my_pieces) & playable_mask
+        if winning_spots > 0 and (winning_spots & played_bit) == 0:
+            self._apply_bias("missed_win", self.RATES["lethal"])
+            self.stats["tactical_blunders"] += 1
 
-        # --- FASE 2: DIFESA (Missed Threat) ---
-        # Noi potevamo vincere al prossimo turno, lui ci ha bloccato?
-        my_lethal_threats = get_threat_mask(my_pieces, full_mask_old)
+        # 2. ANALISI STRATEGICA DIFFERENZIALE
+        # Passiamo playable_mask per ignorare le minacce "volanti" (irraggiungibili)
+        self._analyze_response(my_pieces, played_bit, playable_mask)
 
-        if my_lethal_threats > 0:
-            if (my_lethal_threats & played_bit) != 0:
-                # Ha parato! Riduciamo leggermente i bias (gioca bene)
-                self._decay_biases(0.01)
-            else:
-                print(f"[PROFILER] L'avversario non ha parato una nostra vittoria!")
-                self._analyze_missed_threat_type(my_pieces, my_lethal_threats)
-                self._apply_bias("threat_underestimation", 0.3)
-                self.stats["fatal_errors"] += 1
+    def _analyze_response(self, my_pieces, played_bit, playable_mask):
+        """
+        Analizza se la mossa giocata blocca una minaccia o la ignora.
+        Considera SOLO le minacce che erano effettivamente giocabili (playable_mask).
+        """
+        # --- VERTICALE ---
+        # Verifica veloce: Ho 2 pezzi sotto la mossa attuale?
+        if (played_bit >> 1) & my_pieces and (played_bit >> 2) & my_pieces:
+            self._apply_bias("vertical_weakness", -self.RATES["correction"])
 
-        # --- FASE 3: ANALISI POSIZIONALE ---
-        if winning_spots == 0 and my_lethal_threats == 0:
-            self._check_positional_errors(my_pieces, played_bit, full_mask_old)
+        # --- ORIZZONTALE ---
+        h_threats = self._get_potential_threats(my_pieces, 7)
+        if h_threats & played_bit:
+            # HA PARATO una minaccia orizzontale
+            self._apply_bias("horizontal_weakness", -self.RATES["correction"])
+        elif (h_threats & playable_mask):
+            # C'erano minacce orizzontali GIOCABILI ma ha giocato altrove -> IGNORATE
+            self._apply_bias("horizontal_weakness", self.RATES["strategic"])
 
-    def _analyze_missed_threat_type(self, my_pieces, threat_mask):
-        # Verticale
-        vert = my_pieces & (my_pieces >> 1) & (my_pieces >> 2)
-        if ((vert << 3) & threat_mask) != 0:
-            self._apply_bias("vertical_weakness", 0.2)
-            return
+        # --- DIAGONALI ---
+        d_threats = self._get_potential_threats(my_pieces, 6) | self._get_potential_threats(my_pieces, 8)
+        if d_threats & played_bit:
+            # HA PARATO una minaccia diagonale
+            self._apply_bias("diagonal_weakness", -self.RATES["correction"])
+        elif (d_threats & playable_mask):
+            # C'erano minacce diagonali GIOCABILI ma ha giocato altrove -> IGNORATE
+            self._apply_bias("diagonal_weakness", self.RATES["strategic"])
 
-        # Orizzontale
-        horiz_check = self._get_directional_threat(my_pieces, 7)
-        if (horiz_check & threat_mask) != 0:
-            self._apply_bias("horizontal_weakness", 0.2)
-            return
+    def _get_potential_threats(self, pieces, shift):
+        """
+        Ritorna una maschera di celle vuote che completerebbero un tris o bloccherebbero una coppia.
+        """
+        # XX_
+        t1 = (pieces & (pieces >> shift)) << (shift * 2) # Errore logico corretto: shift positivo per 'buco'
 
-        # Diagonali
-        diag1 = self._get_directional_threat(my_pieces, 6)
-        diag2 = self._get_directional_threat(my_pieces, 8)
+        # Logica bitwise per trovare i buchi adiacenti alle coppie
+        # Pattern: _XX (buco a sinistra) o XX_ (buco a destra)
 
-        if ((diag1 | diag2) & threat_mask) != 0:
-            self._apply_bias("diagonal_weakness", 0.4)
-            print("[PROFILER] Bias Rilevato: Cecità Diagonale")
+        # Sposta a destra (controlla sinistra)
+        shifted_right = pieces >> shift
+        pairs_right = pieces & shifted_right
+        threats_left = pairs_right >> shift # _XX
 
-    def _get_directional_threat(self, pieces, shift):
-        threats = 0
-        trios = pieces & (pieces >> shift) & (pieces >> (shift * 2))
-        threats |= (trios << (shift * 3)) | (trios >> shift)
+        # Sposta a sinistra (controlla destra)
+        shifted_left = pieces << shift
+        pairs_left = pieces & shifted_left
+        threats_right = pairs_left << shift # XX_
 
-        gap1 = pieces & (pieces >> shift) & (pieces >> (shift * 3))
-        threats |= (gap1 << (shift * 2))
-        gap2 = pieces & (pieces >> (shift * 2)) & (pieces >> (shift * 3))
-        threats |= (gap2 << shift)
-        return threats
+        # Pattern Gap: X_X
+        # X a pos, X a pos+2s. Gap a pos+s.
+        gap_base = pieces & (pieces >> (shift * 2))
+        threats_gap = gap_base << shift
 
-    def _check_positional_errors(self, my_pieces, played_bit, full_mask):
-        # Controlliamo solo le diagonali come indicatore chiave
-        for shift in [6, 8]:
-            pairs = my_pieces & (my_pieces >> shift)
-            expansion_slots = (pairs >> shift) | (pairs << (shift * 2))
-            expansion_slots &= ~full_mask
-
-            if expansion_slots > 0:
-                # Se l'avversario ignora le nostre espansioni diagonali
-                if (expansion_slots & played_bit) == 0:
-                    self._apply_bias("diagonal_weakness", 0.05)
+        return threats_left | threats_right | threats_gap
 
     def _decay_biases(self, amount):
-        for k in self.biases:
-            if self.biases[k] > 1.0:
-                self._apply_bias(k, -amount)
+        pass
 
     def get_adaptive_weights(self):
-        return self.biases
+        return {k: (v if v >= self.CONFIDENCE_THRESHOLD else 1.0) for k, v in self.biases.items()}

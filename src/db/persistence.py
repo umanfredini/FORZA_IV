@@ -3,9 +3,12 @@ import json
 from datetime import datetime
 import os
 
+# Trova la cartella del progetto (due livelli sopra questo file se è in src/db/)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DB_PATH = os.path.join(BASE_DIR, "data", "connect4_factory.db")
 
 class GamePersistence:
-    def __init__(self, db_path="data/connect4_factory.db"):
+    def __init__(self, db_path=DB_PATH):
         self.db_path = db_path
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._init_db()
