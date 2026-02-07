@@ -161,4 +161,4 @@ def run_training_session(opponent_type="diagonal", iterations=20):
 
 
 if __name__ == "__main__":
-    run_training_session("diagonal", iterations=100)
+    run_training_session("novice", iterations=100)
