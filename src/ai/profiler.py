@@ -22,7 +22,7 @@ class OpponentProfiler:
         self.RATES = {
             "lethal": 0.4,      # Errore grave (vittoria mancata)
             "strategic": 0.1,   # Errore lieve (coppia ignorata)
-            "correction": 0.20  # Correzione (ha parato!) - Aumentato per premiare la difesa
+            "correction": 0.05  # Correzione (ha parato!) - Aumentato per premiare la difesa
         }
 
         self.CONFIDENCE_THRESHOLD = 1.2
@@ -41,7 +41,7 @@ class OpponentProfiler:
 
     def cooling_after_loss(self):
         applied = False
-        COOLING_FACTOR = 0.2
+        COOLING_FACTOR = 0.1
         for k in self.biases:
             if self.biases[k] >= self.ARROGANCE_THRESHOLD:
                 excess = self.biases[k] - 1.0
