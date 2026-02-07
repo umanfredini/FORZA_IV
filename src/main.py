@@ -8,7 +8,7 @@ from board.controller import GameController
 from board.menu import MenuManager, STATE_MAIN_MENU, STATE_GAME, STATE_BOT_SELECT, STATE_GAME_OVER
 
 # --- MODULI INTELLIGENZA ARTIFICIALE ---
-from ai.minmax import MinimaxAgent
+from ai.minimax import MinimaxAgent
 from ai.evaluator import AdaptiveEvaluator
 from ai.bots.training_evaluators import CasualEvaluator, DiagonalBlinderEvaluator, EdgeRunnerEvaluator
 from db.persistence import GamePersistence
