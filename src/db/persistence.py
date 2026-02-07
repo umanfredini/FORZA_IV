@@ -66,7 +66,7 @@ class GamePersistence:
                        )
                            )
                        ''')
-        
+
         conn.commit()
         conn.close()
 
@@ -137,3 +137,54 @@ class GamePersistence:
             except json.JSONDecodeError:
                 return None
         return None
+
+        # --- METODI PER L'APPRENDIMENTO APERTURE ---
+
+        def update_opening_move(self, state_hash, move_col, won):
+            """
+            Aggiorna le statistiche per una mossa specifica.
+            Se won=True, incrementa wins e visits.
+            Se won=False, incrementa solo visits.
+            """
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # Verifica se esiste già
+            cursor.execute('SELECT visits, wins FROM opening_book WHERE state_hash=? AND move_col=?',
+                           (state_hash, move_col))
+            row = cursor.fetchone()
+
+            win_increment = 1 if won else 0
+
+            if row:
+                new_visits = row[0] + 1
+                new_wins = row[1] + win_increment
+                cursor.execute('''
+                               UPDATE opening_book
+                               SET visits=?,
+                                   wins=?
+                               WHERE state_hash = ?
+                                 AND move_col = ?
+                               ''', (new_visits, new_wins, state_hash, move_col))
+            else:
+                cursor.execute('''
+                               INSERT INTO opening_book (state_hash, move_col, visits, wins)
+                               VALUES (?, ?, 1, ?)
+                               ''', (state_hash, move_col, win_increment))
+
+            conn.commit()
+            conn.close()
+
+        def get_opening_stats(self, state_hash):
+            """
+            Restituisce tutte le mosse conosciute per questo stato.
+            Return: List of (move_col, visits, wins)
+            """
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT move_col, visits, wins FROM opening_book WHERE state_hash=?', (state_hash,))
+            results = cursor.fetchall()
+
+            conn.close()
+            return results
