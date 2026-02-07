@@ -37,6 +37,34 @@ class GamePersistence:
                            TEXT
                        )
                        ''')
+
+        # --- MODIFICA: SCORE INVECE DI WINS ---
+        # total_score: Somma dei punteggi (es. +100, -20, -100)
+        # avg_score: total_score / visits (Calcolato al volo o salvato per velocità)
+        cursor.execute('''
+                       CREATE TABLE IF NOT EXISTS opening_book
+                       (
+                           state_hash
+                           TEXT,
+                           move_col
+                           INTEGER,
+                           visits
+                           INTEGER
+                           DEFAULT
+                           0,
+                           total_score
+                           INTEGER
+                           DEFAULT
+                           0,
+                           PRIMARY
+                           KEY
+                       (
+                           state_hash,
+                           move_col
+                       )
+                           )
+                       ''')
+
         conn.commit()
         conn.close()
 
@@ -107,3 +135,45 @@ class GamePersistence:
             except json.JSONDecodeError:
                 return None
         return None
+
+        # --- METODI PER L'APPRENDIMENTO APERTURE ---
+
+    def update_opening_move(self, state_hash, move_col, score_delta):
+        """
+        Aggiorna il punteggio di una mossa.
+        score_delta: Il punteggio assegnato a questa partita (+100, -20, ecc.)
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT visits, total_score FROM opening_book WHERE state_hash=? AND move_col=?',
+                       (state_hash, move_col))
+        row = cursor.fetchone()
+
+        if row:
+            new_visits = row[0] + 1
+            new_score = row[1] + score_delta
+            cursor.execute('''
+                           UPDATE opening_book
+                           SET visits=?,
+                               total_score=?
+                           WHERE state_hash = ?
+                             AND move_col = ?
+                           ''', (new_visits, new_score, state_hash, move_col))
+        else:
+            cursor.execute('''
+                           INSERT INTO opening_book (state_hash, move_col, visits, total_score)
+                           VALUES (?, ?, 1, ?)
+                           ''', (state_hash, move_col, score_delta))
+
+        conn.commit()
+        conn.close()
+
+    def get_opening_stats(self, state_hash):
+        """ Restituisce (move, visits, total_score) """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute('SELECT move_col, visits, total_score FROM opening_book WHERE state_hash=?', (state_hash,))
+        results = cursor.fetchall()
+        conn.close()
+        return results
