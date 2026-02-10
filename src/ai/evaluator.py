@@ -39,25 +39,27 @@ class AdaptiveEvaluator:
 
         score = 0
 
-        # --- 1. ATTACCO (Guidato dai Bias) ---
-        # L'IA usa i bias per scegliere LA DIREZIONE dell'attacco.
+        # --- 1. ATTACCO PREDATORIO (Guidato dai Bias) ---
+        # Se l'avversario è debole in una direzione, il valore di quell'attacco
+        # viene amplificato per forzare situazioni che il suo depth ridotto non vede.
 
         # Centro: Fondamentale per le diagonali
         score += (my_pieces & self.CENTER_MASK).bit_count() * self.SCORE_CENTER * biases.get('center_weight', 1.0)
 
-        # Direzioni
-        score += self._score_position(my_pieces, full_mask, 1) * biases.get('vertical_weakness', 1.0)
-        score += self._score_position(my_pieces, full_mask, 7) * biases.get('horizontal_weakness', 1.0)
+        # Direzioni con moltiplicatore di aggressività
+        # Se bias > 1.0, l'attacco in quella direzione diventa prioritario
+        score += self._score_position(my_pieces, full_mask, 1) * (biases.get('vertical_weakness', 1.0) ** 2)
+        score += self._score_position(my_pieces, full_mask, 7) * (biases.get('horizontal_weakness', 1.0) ** 2)
 
-        # Diagonali: Se il bias è alto, queste mosse valgono molto di più
+        # Diagonali: Il punto debole tipico dei bot a basso depth.
+        # Usiamo un esponente per rendere l'IA "ossessionata" se il bias è alto.
         diag_score = self._score_position(my_pieces, full_mask, 6) + \
                      self._score_position(my_pieces, full_mask, 8)
-        score += diag_score * biases.get('diagonal_weakness', 1.0)
+        score += diag_score * (biases.get('diagonal_weakness', 1.0) ** 2)
 
-        # --- 2. DIFESA (Blindata) ---
-        # Qui NON usiamo bias. Una minaccia è una minaccia.
-
-        score -= (opp_pieces & self.CENTER_MASK).bit_count() * self.SCORE_CENTER
+        # --- 2. DIFESA ADATTIVA (Sconto Confidenza) ---
+        # Se sappiamo che l'avversario è scarso (bias alto), possiamo permetterci
+        # di essere meno "paranoici" in difesa per dare priorità all'attacco vincente.
 
         # Calcolo minacce nemiche
         opp_threats = 0
@@ -66,17 +68,27 @@ class AdaptiveEvaluator:
         opp_threats += self._score_defense(opp_pieces, full_mask, 6) + \
                        self._score_defense(opp_pieces, full_mask, 8)
 
-        score -= opp_threats
+        # --- MIGLIORIA: Se l'avversario sottovaluta le minacce, riduciamo il peso
+        # della nostra difesa (Risk Management) per essere più aggressivi.
+        defense_relaxation = 1.0 / biases.get('threat_underestimation', 1.0)
+        score -= (opp_threats * defense_relaxation)
 
-        # --- 3. FORCHETTE E TATTICA ---
-        # Le forchette sono ottime, ma non devono mai superare il valore di una difesa letale.
+        # Penalità centro avversario
+        score -= (opp_pieces & self.CENTER_MASK).bit_count() * self.SCORE_CENTER
 
-        if self._get_threat_mask(my_pieces, full_mask).bit_count() >= 2:
-            score += self.SCORE_DOUBLE_THREAT
+        # --- 3. FORCHETTE E TATTICA (Anti-Novizio) ---
+        # Un bot a depth 2 non può prevedere una forchetta. Se rileviamo un alto
+        # bias di sottovalutazione minacce, puntiamo tutto sulla creazione di double threats.
 
-        # Se l'avversario ha una forchetta, è grave (x1.5 della mia)
+        my_threat_mask = self._get_threat_mask(my_pieces, full_mask)
+        if my_threat_mask.bit_count() >= 2:
+            # Moltiplichiamo il bonus forchetta per il bias dell'avversario
+            score += self.SCORE_DOUBLE_THREAT * biases.get('threat_underestimation', 1.0)
+
+        # Se l'avversario ha una forchetta, è grave, ma se è un bot debole
+        # potrebbe non completarla, quindi non esageriamo con la penalità se abbiamo un attacco forte.
         if self._get_threat_mask(opp_pieces, full_mask).bit_count() >= 2:
-            score -= self.SCORE_DOUBLE_THREAT * 1.5
+            score -= (self.SCORE_DOUBLE_THREAT * 1.5) * defense_relaxation
 
         return score
 
