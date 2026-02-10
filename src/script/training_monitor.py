@@ -48,6 +48,7 @@ def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
         opp_depth = 4
         opp_noise = 0.2
     else:
+        # Fallback per "casual", "novice" o qualsiasi altro nome
         opp_evaluator = CasualEvaluator()
         opp_depth = 2
         opp_noise = 0.3
@@ -91,7 +92,8 @@ def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
                 if move is None: move = ai_agent.choose_move(0)
 
                 if move is None:
-                    game_over = True; winner = "draw"
+                    game_over = True;
+                    winner = "draw"
                 else:
                     if opening_manager: opening_manager.record_move(engine, move, 0)
                     engine.drop_piece(move, 0)
@@ -100,7 +102,8 @@ def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
                 move = opponent_agent.choose_move(1)
 
                 if move is None:
-                    game_over = True; winner = "draw"
+                    game_over = True;
+                    winner = "draw"
                 else:
                     if opening_manager: opening_manager.record_move(engine, move, 1)
                     engine.drop_piece(move, 1)
@@ -121,18 +124,19 @@ def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
             opening_manager.finalize_game(w_idx)
 
         # Stats Update
-        if result := "loss" if winner == "bot" else ("win" if winner == "ai" else "draw"):
-            if result == "loss": profiler.cooling_after_loss()
+        result = "loss" if winner == "bot" else ("win" if winner == "ai" else "draw")
 
-            if winner == "ai":
-                wins += 1
-            elif winner == "bot":
-                losses += 1
-            else:
-                draws += 1
+        if result == "loss": profiler.cooling_after_loss()
 
-            if db:
-                db.save_game_result(opponent_type, result, profiler.get_adaptive_weights(), moves)
+        if winner == "ai":
+            wins += 1
+        elif winner == "bot":
+            losses += 1
+        else:
+            draws += 1
+
+        if db:
+            db.save_game_result(opponent_type, result, profiler.get_adaptive_weights(), moves)
 
         # --- GESTIONE OUTPUT SILENZIOSO / PROGRESSO ---
         if not silent:
@@ -150,4 +154,26 @@ def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
 
 
 if __name__ == "__main__":
-    run_training_session("diagonal", iterations=10)
+    # Parametri
+    OPPONENT = "casual"  # o "edge", "diagonal"
+    ITERATIONS = 300
+
+    print(f"🚀 Avvio Training vs {OPPONENT.upper()} ({ITERATIONS} partite)...")
+
+    # Esecuzione e cattura risultati
+    w, l, d = run_training_session(OPPONENT, iterations=ITERATIONS, silent=False)
+
+    # Calcolo percentuali
+    total = w + l + d
+    win_rate = (w / total * 100) if total > 0 else 0
+
+    # Stampa Report Finale
+    print("\n" + "=" * 40)
+    print(f"📊 REPORT RISULTATI ({OPPONENT.upper()})")
+    print("=" * 40)
+    print(f"✅ Vittorie (IA): {w}")
+    print(f"❌ Sconfitte:     {l}")
+    print(f"⚪ Pareggi:       {d}")
+    print("-" * 40)
+    print(f"📈 Win Rate:      {win_rate:.1f}%")
+    print("=" * 40)

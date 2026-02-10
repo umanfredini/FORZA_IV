@@ -88,4 +88,4 @@ def run_full_benchmark(games_per_opponent=100):
 
 if __name__ == "__main__":
     # Eseguiamo 100 partite per bot (aumenta a 1000 per dati più precisi)
-    run_full_benchmark(games_per_opponent=10)
+    run_full_benchmark(games_per_opponent=1000)

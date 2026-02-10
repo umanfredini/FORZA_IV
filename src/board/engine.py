@@ -87,15 +87,26 @@ class GameEngine:
     # --- METODI PER IL MINIMAX (Salvataggio Stato) ---
 
     def get_state(self):
-        """ Aggiungiamo il counter allo snapshot dello stato """
-        return self.bitboards[0], self.bitboards[1], list(self.heights), self.counter
+        """
+        Restituisce lo stato corrente completo.
+        IMPORTANTE: Deve includere le Bitboard E le Altezze (heights).
+        Il Profiler si aspetta: [bitboard_P1, bitboard_P2, heights_list]
+        """
+        # Restituiamo una copia delle bitboard e una COPIA delle altezze (heights[:])
+        return [self.bitboards[0], self.bitboards[1], self.heights[:], self.counter]
 
     def set_state(self, state):
-        """ Ripristiniamo anche il counter """
-        p1, p2, h, c = state
-        self.bitboards = [p1, p2]
-        self.heights = list(h)
-        self.counter = c  # Fondamentale!
+        """
+        Ripristina lo stato della scacchiera.
+        """
+        self.bitboards[0] = state[0]
+        self.bitboards[1] = state[1]
+
+        # Ripristiniamo anche le altezze.
+        # Se il tuo vecchio codice non passava le heights, questo crashava.
+        self.heights = state[2][:]
+        self.counter = state[3]
+
 
     def reset(self):
         """ Ripristina tutto allo stato iniziale. """
