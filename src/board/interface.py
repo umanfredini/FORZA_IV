@@ -2,221 +2,259 @@ import pygame
 
 
 class GameView:
-    """
-    * Gestisce il rendering grafico.
-    * Include ora la SIDEBAR DI ANALISI (1000x700).
-    """
-
     def __init__(self, screen):
         self.screen = screen
-        self.total_width = screen.get_width()
-        self.height = screen.get_height()
+        self.WIDTH, self.HEIGHT = screen.get_size()
 
-        # --- LAYOUT ---
-        # La scacchiera occupa sempre i primi 700px
-        self.board_width = 700
-        self.sidebar_width = self.total_width - self.board_width
+        # --- PALETTE CYBERPUNK ---
+        self.C_BG = (10, 12, 18)  # Background scuro
+        self.C_BOARD = (20, 30, 200)  # Blu Elettrico
+        self.C_BORDER = (50, 150, 255)  # Bordo tech
 
-        # Dimensioni della griglia (basate sulla board_width, non total_width)
-        self.ui_height = 100
-        self.sq_size = int(self.board_width / 7)
-        self.radius = int(self.sq_size / 2 - 8)
+        # Pedine (con effetto glow)
+        self.C_P1 = (255, 40, 40)  # Rosso
+        self.C_P1_GLOW = (150, 0, 0)
+        self.C_P2 = (255, 200, 0)  # Giallo
+        self.C_P2_GLOW = (100, 80, 0)
 
-        # --- Colori ---
-        self.COLOR_BG = (30, 30, 30)
-        self.COLOR_SIDEBAR = (20, 20, 25)  # Sfondo scuro per la sidebar
-        self.COLOR_BOARD = (25, 60, 150)
-        self.COLOR_P1 = (220, 50, 50)
-        self.COLOR_P2 = (240, 200, 40)
-        self.COLOR_TEXT = (255, 255, 255)
+        # UI & Profiler
+        self.C_TEXT_MAIN = (200, 220, 255)
+        self.C_TEXT_DIM = (100, 120, 140)  # Grigio per etichette
 
-        # Colori Bias
-        self.COLOR_BIAS_DIAG = (0, 255, 255)  # Ciano (Debolezza diagonale)
-        self.COLOR_BIAS_VERT = (50, 255, 50)  # Verde (Debolezza verticale)
-        self.COLOR_BIAS_WARN = (255, 50, 50)  # Rosso (Errori fatali)
+        # Barre Profiler
+        self.C_DIAG = (0, 255, 255)
+        self.C_VERT = (0, 255, 128)
+        self.C_HORIZ = (255, 165, 0)
+        self.C_THREAT = (255, 0, 128)
 
-        # --- Fonts ---
-        self.font_main = pygame.font.SysFont("Segoe UI", 24, bold=True)
-        self.font_score = pygame.font.SysFont("monospace", 20)
-        self.font_eval = pygame.font.SysFont("monospace", 28, bold=True)
-        self.font_sidebar_title = pygame.font.SysFont("Arial", 22, bold=True)
-        self.font_sidebar_text = pygame.font.SysFont("Consolas", 14)
+        # --- SETUP GEOMETRIA ---
+        self.margin = 30
 
-        # Fonts Modal
-        self.font_modal_title = pygame.font.SysFont("Arial", 50, bold=True)
-        self.font_modal_btn = pygame.font.SysFont("Arial", 30, bold=True)
+        # 1. Scacchiera (Sinistra)
+        self.board_rows = 6
+        self.board_cols = 7
+
+        avail_h = self.HEIGHT - (self.margin * 2) - 80
+        self.sq_size = int(avail_h / self.board_rows)
+
+        self.board_w = self.board_cols * self.sq_size
+        self.board_h = self.board_rows * self.sq_size
+
+        self.board_x = self.margin
+        self.board_y = self.HEIGHT - self.board_h - self.margin
+
+        self.board_rect = pygame.Rect(self.board_x, self.board_y, self.board_w, self.board_h)
+
+        # Parametri per main.py
+        self.slot_start_x = self.board_x
+        self.cell_size = self.sq_size
+
+        # 2. Generazione Texture "Bucata"
+        self.board_surface = self._generate_board_texture()
+
+        # 3. Profiler (Destra)
+        prof_x = self.board_x + self.board_w + self.margin
+        prof_w = self.WIDTH - prof_x - self.margin
+        self.prof_rect = pygame.Rect(prof_x, self.board_y, prof_w, self.board_h - 80)
+
+        # 4. Header (Scoreboard) - In alto
+        self.head_rect = pygame.Rect(self.margin, 20, self.WIDTH - (self.margin * 2), 70)
+
+        # 5. Tasto Reset (Basso a destra)
+        btn_w, btn_h = 160, 50
+        self.reset_rect = pygame.Rect(
+            self.WIDTH - self.margin - btn_w,
+            self.HEIGHT - self.margin - btn_h,
+            btn_w,
+            btn_h
+        )
+
+        # Font
+        self.f_sml = pygame.font.SysFont("consolas", 14)
+        self.f_med = pygame.font.SysFont("consolas", 20, bold=True)
+        self.f_big = pygame.font.SysFont("consolas", 32, bold=True)
+
+    def _generate_board_texture(self):
+        s = pygame.Surface((self.board_w, self.board_h), pygame.SRCALPHA)
+        s.fill(self.C_BOARD)
+        radius = int(self.sq_size * 0.42)
+        for c in range(self.board_cols):
+            for r in range(self.board_rows):
+                cx = c * self.sq_size + self.sq_size // 2
+                cy = r * self.sq_size + self.sq_size // 2
+                pygame.draw.circle(s, (0, 0, 0, 0), (cx, cy), radius)
+        return s
 
     def draw(self, board_matrix, stats, profiler=None):
-        """
-        Renderizza tutto. Ora accetta opzionalmente 'profiler' per disegnare la sidebar.
-        """
-        # Pulizia sfondo
-        self.screen.fill(self.COLOR_BG)
+        self.screen.fill(self.C_BG)
 
-        # Disegna Scacchiera (Parte Sinistra)
-        self._draw_board_area(board_matrix, stats)
+        # --- 1. DISEGNO PEDINE (Dietro la scacchiera) ---
+        for r in range(6):
+            for c in range(7):
+                piece = board_matrix[r][c]
+                if piece != 0:
+                    cx = self.board_x + c * self.sq_size + self.sq_size // 2
+                    cy = self.board_y + r * self.sq_size + self.sq_size // 2
 
-        # Disegna Sidebar (Parte Destra) se il profiler è disponibile
-        if self.total_width >= 1000 and profiler:
-            self._draw_sidebar(profiler)
+                    radius = int(self.sq_size * 0.40)
 
-        pygame.display.update()
+                    color = self.C_P1 if piece == 1 else self.C_P2
+                    glow = self.C_P1_GLOW if piece == 1 else self.C_P2_GLOW
 
-    def _draw_board_area(self, board_matrix, stats):
-        # 1. UI Punteggi
-        p1_title = self.font_score.render(f"P1 (RED)", True, self.COLOR_P1)
-        p1_stats = self.font_score.render(f"Wins: {stats['wins_p1']} | Moves: {stats['moves_p1']}", True,
-                                          self.COLOR_TEXT)
-        self.screen.blit(p1_title, (20, 20))
-        self.screen.blit(p1_stats, (20, 50))
+                    # Glow esterno
+                    pygame.draw.circle(self.screen, glow, (cx, cy), radius + 4)
+                    # Corpo solido
+                    pygame.draw.circle(self.screen, color, (cx, cy), radius)
+                    # (RIMOSSO RIFLESSO BIANCO)
 
-        p2_title = self.font_score.render(f"BOT (YEL)", True, self.COLOR_P2)
-        p2_stats = self.font_score.render(f"Wins: {stats['wins_p2']} | Moves: {stats['moves_p2']}", True,
-                                          self.COLOR_TEXT)
-        # Allineato al bordo destro della SCACCHIERA (700px), non della finestra
-        right_limit = self.board_width
-        self.screen.blit(p2_title, (right_limit - p2_title.get_width() - 20, 20))
-        self.screen.blit(p2_stats, (right_limit - p2_stats.get_width() - 20, 50))
+        # --- 2. DISEGNO SCACCHIERA ---
+        self.screen.blit(self.board_surface, (self.board_x, self.board_y))
+        pygame.draw.rect(self.screen, self.C_BORDER, self.board_rect, 3, border_radius=10)
 
-        # 2. UI Eval
-        score = stats.get('ai_eval', 0)
-        if score > 10000:
-            eval_text = "MATE (BOT)"
-            color_eval = self.COLOR_P2
-        elif score < -10000:
-            eval_text = "MATE (P1)"
-            color_eval = self.COLOR_P1
-        else:
-            sign = "+" if score > 0 else ""
-            eval_text = f"EVAL: {sign}{score}"
-            if score > 20:
-                color_eval = self.COLOR_P2
-            elif score < -20:
-                color_eval = self.COLOR_P1
-            else:
-                color_eval = (200, 200, 200)
+        # --- 3. HEADER / SCOREBOARD (REFURBISHED) ---
+        self._draw_panel(self.head_rect)
 
-        eval_surface = self.font_eval.render(eval_text, True, color_eval)
-        center_x = (self.board_width // 2) - (eval_surface.get_width() // 2)
-        self.screen.blit(eval_surface, (center_x, 35))
+        center_x = self.head_rect.centerx
 
-        # 3. Griglia
-        for c in range(7):
-            for r in range(6):
-                rect_x = c * self.sq_size
-                rect_y = r * self.sq_size + self.ui_height
+        # --- PLAYER 1 (Sinistra) ---
+        # Definiamo un punto centrale per l'area P1
+        p1_center = self.head_rect.left + 100
+        # Nome P1
+        self._draw_text_aligned("PLAYER 1", (p1_center, self.head_rect.centery - 12), self.C_P1, self.f_med, "center")
+        # Wins
+        self._draw_text_aligned(f"WINS: {stats['wins_p1']}", (p1_center, self.head_rect.centery + 12), self.C_TEXT_DIM,
+                                self.f_sml, "center")
 
-                pygame.draw.rect(self.screen, self.COLOR_BOARD, (rect_x, rect_y, self.sq_size, self.sq_size))
+        # --- PLAYER 2 / BOT (Destra) ---
+        # Definiamo un punto centrale per l'area P2
+        p2_center = self.head_rect.right - 100
+        # Nome P2
+        self._draw_text_aligned("OPPONENT", (p2_center, self.head_rect.centery - 12), self.C_P2, self.f_med, "center")
+        # Wins
+        self._draw_text_aligned(f"WINS: {stats['wins_p2']}", (p2_center, self.head_rect.centery + 12), self.C_TEXT_DIM,
+                                self.f_sml, "center")
 
-                cell = board_matrix[r][c]
-                color = (15, 15, 15)
-                if cell == 1:
-                    color = self.COLOR_P1
-                elif cell == 2:
-                    color = self.COLOR_P2
+        # --- BARRA EVAL (TUG OF WAR) ---
 
-                pygame.draw.circle(self.screen, color, (rect_x + self.sq_size // 2, rect_y + self.sq_size // 2),
-                                   self.radius)
+        self._draw_eval_bar(center_x, self.head_rect.top + 40, stats.get('ai_eval', 0))
 
-    def _draw_sidebar(self, profiler):
-        """ Disegna i grafici dei Bias """
-        # Sfondo Sidebar
-        sidebar_rect = pygame.Rect(self.board_width, 0, self.sidebar_width, self.height)
-        pygame.draw.rect(self.screen, self.COLOR_SIDEBAR, sidebar_rect)
-        pygame.draw.line(self.screen, (100, 100, 100), (self.board_width, 0), (self.board_width, self.height), 2)
+        # --- 4. TASTO RESET ---
+        pygame.draw.rect(self.screen, (30, 45, 60), self.reset_rect, border_radius=8)
+        pygame.draw.rect(self.screen, self.C_DIAG, self.reset_rect, 2, border_radius=8)
 
-        start_x = self.board_width + 20
-        y = 30
+        rst_txt = self.f_med.render("RESET GAME", True, self.C_DIAG)
+        self.screen.blit(rst_txt, (self.reset_rect.centerx - rst_txt.get_width() // 2,
+                                   self.reset_rect.centery - rst_txt.get_height() // 2))
 
-        # Titolo
-        title = self.font_sidebar_title.render("NEURAL PROFILER", True, (0, 255, 200))
-        self.screen.blit(title, (start_x, y))
-        y += 50
+        # --- 5. PROFILER ---
+        self._draw_panel(self.prof_rect)
 
-        # Recuperiamo i Bias
-        biases = profiler.get_adaptive_weights()
+        title = self.f_med.render("NEURAL PROFILER", True, self.C_DIAG)
+        self.screen.blit(title, (self.prof_rect.centerx - title.get_width() // 2, self.prof_rect.top + 20))
 
-        # Definizione barre da disegnare
-        # (Label, Chiave Dizionario, Colore)
-        bars = [
-            ("DIAGONAL WEAKNESS", "diagonal_weakness", self.COLOR_BIAS_DIAG),
-            ("VERTICAL WEAKNESS", "vertical_weakness", self.COLOR_BIAS_VERT),
-            ("HORIZ. WEAKNESS", "horizontal_weakness", (255, 165, 0)),
-            ("THREAT BLINDNESS", "threat_underestimation", (255, 100, 200)),
-        ]
+        if profiler:
+            biases = profiler.get_adaptive_weights()
+            start_y = self.prof_rect.top + 80
+            gap = 60
 
-        for label, key, color in bars:
-            val = biases.get(key, 1.0)
-            # Normalizziamo: 1.0 (Min) -> 0px, 3.0 (Max) -> Full Width
-            # Lunghezza massima barra = 200px
-            bar_len = min(200, int((val - 1.0) * 100))
-            if bar_len < 5: bar_len = 5  # Minimo visibile
+            self._draw_prof_bar("DIAGONAL", start_y, biases.get('diagonal_weakness', 1.0), self.C_DIAG)
+            self._draw_prof_bar("VERTICAL", start_y + gap, biases.get('vertical_weakness', 1.0), self.C_VERT)
+            self._draw_prof_bar("HORIZONTAL", start_y + gap * 2, biases.get('horizontal_weakness', 1.0), self.C_HORIZ)
+            self._draw_prof_bar("BLINDNESS", start_y + gap * 3, biases.get('threat_underestimation', 1.0),
+                                self.C_THREAT)
 
-            # Testo Label
-            lbl_surf = self.font_sidebar_text.render(f"{label}: {val:.2f}", True, (200, 200, 200))
-            self.screen.blit(lbl_surf, (start_x, y))
-            y += 20
+            err_box_y = self.prof_rect.bottom - 80
+            self._draw_text_aligned("FATAL ERRORS", (self.prof_rect.left + 20, err_box_y), self.C_THREAT, self.f_sml,
+                                    "topleft")
+            err_val = self.f_big.render(str(profiler.stats.get("fatal_errors", 0)), True, self.C_P1)
+            self.screen.blit(err_val, (self.prof_rect.left + 20, err_box_y + 20))
 
-            # Disegno Barra
-            # Sfondo barra (grigio scuro)
-            pygame.draw.rect(self.screen, (50, 50, 50), (start_x, y, 200, 15))
-            # Barra Valore
-            pygame.draw.rect(self.screen, color, (start_x, y, bar_len, 15))
-            y += 40  # Spazio per prossima barra
+    def _draw_panel(self, rect):
+        s = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+        s.fill((30, 35, 45, 200))
+        self.screen.blit(s, (rect.x, rect.y))
+        pygame.draw.rect(self.screen, self.C_BORDER, rect, 2, border_radius=10)
 
-        # Statistiche Errori
-        y += 20
-        stats = profiler.stats
-        err_txt = self.font_sidebar_title.render(f"FATAL ERRORS: {stats['fatal_errors']}", True, self.COLOR_BIAS_WARN)
-        self.screen.blit(err_txt, (start_x, y))
+    def _draw_text_aligned(self, text, pos, color, font, align="topleft"):
+        s = font.render(text, True, color)
+        rect = s.get_rect()
 
-        # Icona Lampeggiante per Trappola (Simulata)
-        # Se c'è un bias diagonale alto, mostriamo un avviso
-        if biases.get("diagonal_weakness", 1.0) > 1.5:
-            y += 60
-            warn_rect = pygame.Rect(start_x, y, 220, 40)
-            pygame.draw.rect(self.screen, (100, 0, 0), warn_rect, border_radius=5)
-            warn_txt = self.font_sidebar_title.render("! DIAG VULNERABLE !", True, (255, 255, 255))
-            self.screen.blit(warn_txt, (start_x + 10, y + 8))
+        if align == "center":
+            rect.center = pos
+        elif align == "midleft":
+            rect.midleft = pos
+        elif align == "midright":
+            rect.midright = pos
+        elif align == "topleft":
+            rect.topleft = pos
+
+        self.screen.blit(s, rect)
+
+    def _draw_eval_bar(self, cx, cy, val):
+        # Disegna una barra "Tiro alla fune"
+        total_w = 300
+        h = 10
+        start_x = cx - total_w // 2
+
+        # Limita i valori tra -2000 e 2000
+        clamped_val = max(-2000.0, min(2000.0, float(val)))
+
+        # Calcola la percentuale di Rosso (P1).
+        # A 0 (equilibrio) è 0.5. A +2000 è 1.0. A -2000 è 0.0.
+        red_ratio = (clamped_val + 2000) / 4000.0
+
+        red_w = int(total_w * red_ratio)
+        yel_w = total_w - red_w
+
+        # Disegna parte Rossa (Sinistra)
+        pygame.draw.rect(self.screen, self.C_P1, (start_x, cy, red_w, h), border_top_left_radius=5,
+                         border_bottom_left_radius=5)
+        # Disegna parte Gialla (Destra)
+        pygame.draw.rect(self.screen, self.C_P2, (start_x + red_w, cy, yel_w, h), border_top_right_radius=5,
+                         border_bottom_right_radius=5)
+
+        # Linea centrale (Equilibrio)
+        pygame.draw.line(self.screen, (0, 0, 0), (cx, cy), (cx, cy + h), 2)
+
+        # Valore numerico (Intero)
+        val_int = int(val)
+        self._draw_text_aligned(f"{val_int:+d}", (cx, cy - 15), (200, 200, 200), self.f_sml, "center")
+
+    def _draw_prof_bar(self, label, y, val, color):
+        self._draw_text_aligned(label, (self.prof_rect.left + 20, y), (200, 200, 200), self.f_sml, "topleft")
+        self._draw_text_aligned(f"{val:.2f}", (self.prof_rect.right - 50, y), color, self.f_sml, "topleft")
+
+        bar_rect = pygame.Rect(self.prof_rect.left + 20, y + 20, self.prof_rect.width - 40, 6)
+        pygame.draw.rect(self.screen, (40, 40, 50), bar_rect, border_radius=3)
+
+        pct = (min(4.0, max(1.0, val)) - 1.0) / 3.0
+        fill_w = int(bar_rect.width * pct)
+        if fill_w > 0:
+            pygame.draw.rect(self.screen, color, (bar_rect.x, bar_rect.y, fill_w, 6), border_radius=3)
 
     def draw_game_over_modal(self, winner_text):
-        """ (Invariato rispetto a prima, ma centratura aggiornata su total_width) """
-        overlay = pygame.Surface((self.total_width, self.height))
-        overlay.set_alpha(180)
-        overlay.fill((0, 0, 0))
-        self.screen.blit(overlay, (0, 0))
+        s = pygame.Surface((self.WIDTH, self.HEIGHT), pygame.SRCALPHA)
+        s.fill((0, 0, 0, 200))
+        self.screen.blit(s, (0, 0))
 
-        box_w, box_h = 400, 280
-        # Centrato rispetto alla finestra totale
-        box_x = (self.total_width - box_w) // 2
-        box_y = (self.height - box_h) // 2
+        center_x, center_y = self.WIDTH // 2, self.HEIGHT // 2
+        box_w, box_h = 400, 250
+        box_rect = pygame.Rect(center_x - box_w // 2, center_y - box_h // 2, box_w, box_h)
+        self._draw_panel(box_rect)
 
-        pygame.draw.rect(self.screen, (40, 40, 50), (box_x, box_y, box_w, box_h), border_radius=20)
-        pygame.draw.rect(self.screen, (255, 255, 255), (box_x, box_y, box_w, box_h), 2, border_radius=20)
+        t = self.f_big.render(winner_text, True, self.C_P1)
+        self.screen.blit(t, (center_x - t.get_width() // 2, box_rect.top + 50))
 
-        text_color = self.COLOR_TEXT
-        if "P1" in winner_text or "GIOCATORE 1" in winner_text: text_color = self.COLOR_P1
-        if "BOT" in winner_text or "GIOCATORE 2" in winner_text: text_color = self.COLOR_P2
+        btn_retry = pygame.Rect(center_x - 100, box_rect.bottom - 110, 200, 40)
+        btn_menu = pygame.Rect(center_x - 100, box_rect.bottom - 60, 200, 40)
 
-        title_surf = self.font_modal_title.render(winner_text, True, text_color)
-        self.screen.blit(title_surf, (self.total_width // 2 - title_surf.get_width() // 2, box_y + 30))
+        pygame.draw.rect(self.screen, self.C_DIAG, btn_retry, border_radius=5)
+        pygame.draw.rect(self.screen, (80, 80, 90), btn_menu, border_radius=5)
 
-        btn_w, btn_h = 280, 50
-        btn_x = (self.total_width - btn_w) // 2
+        t1 = self.f_med.render("RIVINCITA", True, (0, 0, 0))
+        self.screen.blit(t1, (btn_retry.centerx - t1.get_width() // 2, btn_retry.centery - t1.get_height() // 2))
 
-        retry_y = box_y + 110
-        rect_retry = pygame.Rect(btn_x, retry_y, btn_w, btn_h)
-        pygame.draw.rect(self.screen, (50, 180, 50), rect_retry, border_radius=10)
-        retry_text = self.font_modal_btn.render("GIOCA ANCORA", True, (255, 255, 255))
-        self.screen.blit(retry_text, (rect_retry.centerx - retry_text.get_width() // 2,
-                                      rect_retry.centery - retry_text.get_height() // 2))
+        t2 = self.f_med.render("MENU", True, (255, 255, 255))
+        self.screen.blit(t2, (btn_menu.centerx - t2.get_width() // 2, btn_menu.centery - t2.get_height() // 2))
 
-        menu_y = box_y + 180
-        rect_menu = pygame.Rect(btn_x, menu_y, btn_w, btn_h)
-        pygame.draw.rect(self.screen, (180, 50, 50), rect_menu, border_radius=10)
-        menu_text = self.font_modal_btn.render("TORNA AL MENU", True, (255, 255, 255))
-        self.screen.blit(menu_text, (rect_menu.centerx - menu_text.get_width() // 2,
-                                     rect_menu.centery - menu_text.get_height() // 2))
-
-        pygame.display.update()
-        return rect_retry, rect_menu
+        return btn_retry, btn_menu

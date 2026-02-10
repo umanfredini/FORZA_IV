@@ -15,17 +15,25 @@ from db.persistence import GamePersistence
 
 
 def main():
+    """
+    Punto di ingresso principale dell'applicazione.
+    Gestisce il ciclo di vita del gioco, gli eventi di input e la macchina a stati.
+    """
+
     # 1. Inizializzazione Pygame
     pygame.init()
 
-    # Impostiamo la risoluzione a 1000x700 per ospitare la Sidebar laterale
+    # Impostiamo la risoluzione a 1000x700
     WIDTH, HEIGHT = 1000, 700
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Forza 4 - AI Adattiva")
+    pygame.display.set_caption("Forza 4 - AI Adattiva (Predator Engine)")
 
     # 2. Inizializzazione Componenti (Model-View-Controller + Persistence)
     engine = GameEngine()
+
+    # La view carica gli asset grafici all'avvio
     view = GameView(screen)
+
     controller = GameController(engine, view)
     menu = MenuManager(screen)
     persistence = GamePersistence()
@@ -44,7 +52,7 @@ def main():
 
     # --- MAIN LOOP ---
     while True:
-        clock.tick(60)  # Limitiamo a 60 FPS
+        clock.tick(60)  # Limitiamo a 60 FPS per evitare carico CPU inutile
 
         # -----------------------------------------------------------------
         # STATO 1: MENU PRINCIPALE
@@ -101,7 +109,7 @@ def main():
                         selected_bot = MinimaxAgent(engine, adaptive_eval, depth=4)
                         bot_db_name = "human_player"
 
-                        # Tasto ESC: Torna indietro
+                    # Tasto ESC: Torna indietro
                     elif event.key == pygame.K_ESCAPE:
                         app_state = STATE_MAIN_MENU
 
@@ -115,10 +123,11 @@ def main():
                 if bot_db_name:
                     latest_biases = persistence.get_latest_biases(bot_db_name)
                     if latest_biases:
-                        print(f"[SYSTEM] Caricati bias per {bot_db_name}: {latest_biases}")
+                        print(f"[SYSTEM] Caricati bias storici per {bot_db_name}: {latest_biases}")
                         controller.profiler.biases = latest_biases
                     else:
-                        # Se è la prima volta, resettiamo il profiler
+                        # Se è la prima volta, resettiamo il profiler per imparare da zero
+                        print(f"[SYSTEM] Nuovo avversario {bot_db_name}. Profiler resettato.")
                         controller.profiler.__init__()
 
                 controller.reset_for_new_round()
@@ -128,25 +137,25 @@ def main():
         # STATO 3: GIOCO ATTIVO
         # -----------------------------------------------------------------
         elif app_state == STATE_GAME:
-            # 1. Rendering Scena
-            # Disegniamo Scacchiera + Sidebar (Grafici Bias).
-            # NOTA: view.draw() NON chiama più update(), scrive solo sul buffer.
+            # 1. Rendering Scena (Sfondo, Pedine, Griglia, UI)
+            # Passiamo i dati necessari alla View per disegnare il frame corrente
             view.draw(engine.get_board_matrix(), controller.stats, profiler=controller.profiler)
 
             # 2. Logica Turno BOT (Solo in PvE)
             if game_mode == "PVE" and controller.turn == 1 and not controller.game_over:
-                # Forziamo un update qui per mostrare lo stato prima che il bot "pensi"
+                # Forziamo un update grafico per mostrare l'ultima mossa umana prima che il bot "pensi"
                 pygame.display.update()
-                pygame.time.wait(500)  # Piccola pausa per realismo
+                pygame.time.wait(500)  # Piccola pausa per realismo (simula il pensiero)
 
-                # Il bot sceglie la mossa
+                # Il bot sceglie la mossa (ritorna un indice colonna 0-6)
                 col = bot.choose_move(1)
 
-                # Aggiorniamo la barra EVAL in base a cosa pensa il bot
+                # Aggiorniamo la barra EVAL in base alla valutazione del bot
                 controller.stats["ai_eval"] = bot.evaluator.evaluate(engine, 1)
 
                 if col is not None:
-                    # Convertiamo colonna logica -> coordinata pixel per l'animazione (se prevista)
+                    # Simuliamo una coordinata X per il controller
+                    # (Il controller divide per sq_size, quindi moltiplichiamo per sq_size)
                     simulated_x = int(col * view.sq_size + (view.sq_size / 2))
                     win, player = controller.process_turn(simulated_x)
 
@@ -165,9 +174,23 @@ def main():
                     if game_mode == "PVE" and controller.turn == 1: continue
 
                     if event.button == 1:
-                        # Verifichiamo che il click sia nell'area della scacchiera (non nella sidebar)
-                        if event.pos[0] < view.board_width:
-                            win, player = controller.process_turn(event.pos[0])
+                        # --- GESTIONE CLICK ---
+
+                        # A. Pulsante RESET GAME
+                        if hasattr(view, 'reset_rect') and view.reset_rect.collidepoint(event.pos):
+                            print("[INPUT] Reset richiesto dall'utente.")
+                            controller.reset_for_new_round()
+                            continue  # Saltiamo il resto della logica per questo frame
+
+                        # B. Scacchiera (Nuova gestione coordinate centrate)
+                        # Verifichiamo se il click è avvenuto dentro il rettangolo della board
+                        if hasattr(view, 'board_rect') and view.board_rect.collidepoint(event.pos):
+                            # Calcoliamo la X relativa all'inizio della griglia (slot_start_x)
+                            # Questo converte la coordinata assoluta dello schermo in una relativa alla board
+                            relative_x = event.pos[0] - view.slot_start_x
+
+                            # process_turn si aspetta una X che parta da 0 per la colonna 0
+                            win, player = controller.process_turn(relative_x)
 
                             # Se stiamo giocando contro IA, aggiorniamo l'Eval Bar
                             if game_mode == "PVE" and bot:
@@ -194,7 +217,6 @@ def main():
             btn_retry_rect, btn_menu_rect = view.draw_game_over_modal(winner_text)
 
             # 3. UPDATE UNICO (FIX FLICKERING)
-            # Aggiorniamo lo schermo solo ora che entrambi i layer (Sfondo + Modal) sono pronti.
             pygame.display.update()
 
             # 4. Gestione Eventi Modal
@@ -209,7 +231,7 @@ def main():
                         controller.reset_for_new_round()
                         app_state = STATE_GAME
 
-                        # Click su "TORNA AL MENU"
+                    # Click su "TORNA AL MENU"
                     elif btn_menu_rect.collidepoint(mouse_pos):
                         app_state = STATE_MAIN_MENU
 
