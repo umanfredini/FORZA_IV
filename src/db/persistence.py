@@ -178,3 +178,23 @@ class GamePersistence:
             "win_rate": (wins / total) * 100 if wins else 0,
             "avg_moves": round(avg_moves if avg_moves else 0, 2)
         }
+
+    def get_total_stats_by_bot(self, opponent_name):
+        """ Recupera vittorie, sconfitte e pareggi storici contro un bot specifico. """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT 
+                SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN result = 'draw' THEN 1 ELSE 0 END)
+            FROM games
+            WHERE opponent = ?
+        ''', (opponent_name,))
+
+        stats = cursor.fetchone()
+        conn.close()
+
+        # Restituisce (0, 0, 0) se non ci sono partite nel DB
+        return tuple(s if s is not None else 0 for s in stats)
