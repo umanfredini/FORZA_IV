@@ -155,8 +155,8 @@ def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
 
 if __name__ == "__main__":
     # Parametri
-    OPPONENT = "casual"  # o "edge", "diagonal"
-    ITERATIONS = 300
+    OPPONENT = "edge"  # o "edge", "diagonal"
+    ITERATIONS = 100
 
     print(f"🚀 Avvio Training vs {OPPONENT.upper()} ({ITERATIONS} partite)...")
 

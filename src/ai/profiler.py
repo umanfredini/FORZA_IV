@@ -52,9 +52,9 @@ class OpponentProfiler:
                 excess = self.biases[k] - 1.0
                 self.biases[k] = 1.0 + (excess * (1 - COOLING_FACTOR))
                 applied = True
-                print(f"[PROFILER] Bias '{k}' punito (era > {self.ARROGANCE_THRESHOLD})")
-        if not applied:
-            print(f"[PROFILER] Nessun bias sopra {self.ARROGANCE_THRESHOLD}.")
+                #print(f"[PROFILER] Bias '{k}' punito (era > {self.ARROGANCE_THRESHOLD})")
+        #if not applied:
+            #print(f"[PROFILER] Nessun bias sopra {self.ARROGANCE_THRESHOLD}.")
 
 
     def update(self, state_before, move_col, opponent_idx):

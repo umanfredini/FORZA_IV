@@ -82,10 +82,11 @@ def run_full_benchmark(games_per_opponent=100):
     # Stampa tabella finale
     print("\n✅ BENCHMARK COMPLETATO!")
     print(f"Tempo trascorso: {elapsed / 60:.2f} minuti.")
+    print("gay")
 
     print_table(results)
 
 
 if __name__ == "__main__":
     # Eseguiamo 100 partite per bot (aumenta a 1000 per dati più precisi)
-    run_full_benchmark(games_per_opponent=50)
+    run_full_benchmark(games_per_opponent=100)
