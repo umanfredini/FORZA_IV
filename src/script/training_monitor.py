@@ -9,7 +9,9 @@ from src.ai.profiler import OpponentProfiler
 from src.ai.minimax import MinimaxAgent
 from src.ai.opening_manager import OpeningManager
 from src.db.persistence import GamePersistence
-from src.ai.bots.training_evaluators import CasualEvaluator, DiagonalBlinderEvaluator, EdgeRunnerEvaluator
+# --- AGGIUNTO PerfectEvaluator QUI SOTTO ---
+from src.ai.bots.training_evaluators import CasualEvaluator, DiagonalBlinderEvaluator, EdgeRunnerEvaluator, \
+    PerfectEvaluator
 
 
 def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
@@ -29,8 +31,16 @@ def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
     profiler = OpponentProfiler()
 
     if db:
-        opp_key = "diagonal_blinder" if opponent_type == "diagonal" else (
-            "edge_runner" if opponent_type == "edge" else "casual_novice")
+        # --- REFATTORIZZATO PER LEGGIBILITÀ ---
+        if opponent_type == "diagonal":
+            opp_key = "diagonal_blinder"
+        elif opponent_type == "edge":
+            opp_key = "edge_runner"
+        elif opponent_type == "perfect":
+            opp_key = "perfect_bot"
+        else:
+            opp_key = "casual_novice"
+
         past_biases = db.get_latest_biases(opp_key)
         if past_biases:
             profiler.biases.update(past_biases)
@@ -38,7 +48,7 @@ def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
     ai_evaluator = AdaptiveEvaluator(profiler)
     ai_agent = MinimaxAgent(engine, ai_evaluator, depth=4)
 
-    # Configurazione Avversario
+    # --- CONFIGURAZIONE AVVERSARIO ---
     if opponent_type == "diagonal":
         opp_evaluator = DiagonalBlinderEvaluator()
         opp_depth = 4
@@ -47,6 +57,11 @@ def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
         opp_evaluator = EdgeRunnerEvaluator()
         opp_depth = 4
         opp_noise = 0.2
+    elif opponent_type == "perfect":
+        # IL NUOVO BOT: Profondità alta, NESSUN rumore (0.0)
+        opp_evaluator = PerfectEvaluator()
+        opp_depth = 5
+        opp_noise = 0.0
     else:
         # Fallback per "casual", "novice" o qualsiasi altro nome
         opp_evaluator = CasualEvaluator()
@@ -80,8 +95,8 @@ def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
 
         while not game_over:
             if moves >= 42:
-                game_over = True;
-                winner = "draw";
+                game_over = True
+                winner = "draw"
                 break
 
             current_turn = (starting_player + moves) % 2
@@ -92,7 +107,7 @@ def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
                 if move is None: move = ai_agent.choose_move(0)
 
                 if move is None:
-                    game_over = True;
+                    game_over = True
                     winner = "draw"
                 else:
                     if opening_manager: opening_manager.record_move(engine, move, 0)
@@ -102,7 +117,7 @@ def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
                 move = opponent_agent.choose_move(1)
 
                 if move is None:
-                    game_over = True;
+                    game_over = True
                     winner = "draw"
                 else:
                     if opening_manager: opening_manager.record_move(engine, move, 1)
@@ -154,9 +169,9 @@ def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
 
 
 if __name__ == "__main__":
-    # Parametri
-    OPPONENT = "edge"  # o "edge", "diagonal"
-    ITERATIONS = 100
+    # Parametri: Ora puoi mettere "perfect" per testare il bot imbattibile!
+    OPPONENT = "perfect"
+    ITERATIONS = 500
 
     print(f"🚀 Avvio Training vs {OPPONENT.upper()} ({ITERATIONS} partite)...")
 
