@@ -170,7 +170,7 @@ def run_training_session(opponent_type="diagonal", iterations=20, silent=False):
 
 if __name__ == "__main__":
     # Parametri: Ora puoi mettere "perfect" per testare il bot imbattibile!
-    OPPONENT = "perfect"
+    OPPONENT = "diagonal"
     ITERATIONS = 500
 
     print(f"🚀 Avvio Training vs {OPPONENT.upper()} ({ITERATIONS} partite)...")
